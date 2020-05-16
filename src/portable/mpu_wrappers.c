@@ -45,6 +45,7 @@ task.h is included from an application file. */
 #include "mpu_prototypes.h"
 
 #undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+#if (portUSING_MPU_WRAPPERS == 1)
 
 /**
  * @brief Calls the port specific code to raise the privilege.
@@ -1348,3 +1349,5 @@ BaseType_t xRunningPrivileged = xPortRaisePrivilege();
 #if configINCLUDE_APPLICATION_DEFINED_PRIVILEGED_FUNCTIONS == 1
 #include "application_defined_privileged_functions.h"
 #endif
+
+#endif // portUSING_MPU_WRAPPERS

@@ -48,22 +48,16 @@ as the core. */
 #endif
 
 /* Constants required to manipulate the core.  Registers first... */
-#define portNVIC_SYSTICK_CTRL_REG (*((volatile uint32_t*) 0xe000e010))
-#define portNVIC_SYSTICK_LOAD_REG (*((volatile uint32_t*) 0xe000e014))
-#define portNVIC_SYSTICK_CURRENT_VALUE_REG (*((volatile uint32_t*) 0xe000e018))
-#define portNVIC_SYSPRI2_REG (*((volatile uint32_t*) 0xe000ed20))
+#define portNVIC_SYSTICK_CTRL_REG SYST_CSR
+#define portNVIC_SYSTICK_LOAD_REG SYST_RVR
+#define portNVIC_SYSTICK_CURRENT_VALUE_REG SYST_CVR
+#define portNVIC_SYSPRI2_REG SCB_SHPR3
 /* ...then bits in the registers. */
-#define portNVIC_SYSTICK_INT_BIT (1UL << 1UL)
-#define portNVIC_SYSTICK_ENABLE_BIT (1UL << 0UL)
-#define portNVIC_SYSTICK_COUNT_FLAG_BIT (1UL << 16UL)
+#define portNVIC_SYSTICK_INT_BIT SYST_CSR_TICKINT
+#define portNVIC_SYSTICK_ENABLE_BIT SYST_CSR_ENABLE
+#define portNVIC_SYSTICK_COUNT_FLAG_BIT SYST_CSR_COUNTFLAG
 #define portNVIC_PENDSVCLEAR_BIT (1UL << 27UL)
 #define portNVIC_PEND_SYSTICK_CLEAR_BIT (1UL << 25UL)
-
-/* Constants used to detect a Cortex-M7 r0p1 core, which should use the ARM_CM7
-r0p1 port. */
-#define portCPUID (*((volatile uint32_t*) 0xE000ed00))
-#define portCORTEX_M7_r0p1_ID (0x410FC271UL)
-#define portCORTEX_M7_r0p0_ID (0x410FC270UL)
 
 #define portNVIC_PENDSV_PRI (((uint32_t) configKERNEL_INTERRUPT_PRIORITY) << 16UL)
 #define portNVIC_SYSTICK_PRI (((uint32_t) configKERNEL_INTERRUPT_PRIORITY) << 24UL)
@@ -71,7 +65,7 @@ r0p1 port. */
 /* Constants required to check the validity of an interrupt priority. */
 #define portFIRST_USER_INTERRUPT_NUMBER (16)
 #define portNVIC_IP_REGISTERS_OFFSET_16 (0xE000E3F0)
-#define portAIRCR_REG (*((volatile uint32_t*) 0xE000ED0C))
+#define portAIRCR_REG SCB_AIRCR
 #define portMAX_8_BIT_VALUE ((uint8_t) 0xff)
 #define portTOP_BIT_OF_BYTE ((uint8_t) 0x80)
 #define portMAX_PRIGROUP_BITS ((uint8_t) 7)
@@ -82,7 +76,7 @@ r0p1 port. */
 #define portVECTACTIVE_MASK (0xFFUL)
 
 /* Constants required to manipulate the VFP. */
-#define portFPCCR ((volatile uint32_t*) 0xe000ef34) /* Floating point context control register. */
+#define portFPCCR SCB_FPCCR /* Floating point context control register. */
 #define portASPEN_AND_LSPEN_BITS (0x3UL << 30UL)
 
 /* Constants required to set up the initial stack. */
@@ -115,29 +109,29 @@ debugger. */
  * file is weak to allow application writers to change the timer used to
  * generate the tick interrupt.
  */
-void vPortSetupTimerInterrupt(void);
+void vPortSetupTimerInterrupt(void) __attribute__((weak, section(".flashmem")));
 
 /*
  * Exception handlers.
  */
-void xPortPendSVHandler(void) __attribute__((naked));
-void xPortSysTickHandler(void);
-void vPortSVCHandler(void) __attribute__((naked));
+void xPortPendSVHandler(void) __attribute__((naked, used));
+void xPortSysTickHandler(void) __attribute__((used));
+void vPortSVCHandler(void) __attribute__((naked, used));
 
 /*
  * Start first task is a separate function so it can be tested in isolation.
  */
-static void prvPortStartFirstTask(void) __attribute__((naked));
+static void prvPortStartFirstTask(void) __attribute__((naked, used, section(".flashmem")));
 
 /*
  * Function to enable the VFP.
  */
-static void vPortEnableVFP(void) __attribute__((naked));
+static void vPortEnableVFP(void) __attribute__((naked, used, section(".flashmem")));
 
 /*
  * Used to catch tasks that attempt to return from their implementing function.
  */
-static void prvTaskExitError(void);
+static void prvTaskExitError(void) __attribute__((section(".flashmem")));
 
 /*-----------------------------------------------------------*/
 
@@ -258,18 +252,18 @@ static void prvPortStartFirstTask(void) {
     in use in case the FPU was used before the scheduler was started - which
     would otherwise result in the unnecessary leaving of space in the SVC stack
     for lazy saving of FPU registers. */
-    __asm volatile(" ldr r0, =0xE000ED08 	\n" /* Use the NVIC offset register to locate the stack. */
-                   " ldr r0, [r0] 			\n"
-                   " ldr r0, [r0] 			\n"
-                   " msr msp, r0			\n" /* Set the msp back to the start of the stack. */
-                   " mov r0, #0			\n" /* Clear the bit that indicates the FPU is in use, see comment above. */
-                   " msr control, r0		\n"
-                   " cpsie i				\n" /* Globally enable interrupts. */
-                   " cpsie f				\n"
-                   " dsb					\n"
-                   " isb					\n"
-                   " svc 0					\n" /* System call to start first task. */
-                   " nop					\n");
+    __asm volatile(" ldr r0, =0xE000ED08    \n" /* Use the NVIC offset register to locate the stack. */
+                   " ldr r0, [r0]           \n"
+                   " ldr r0, [r0]           \n"
+                   " msr msp, r0            \n" /* Set the msp back to the start of the stack. */
+                   " mov r0, #0             \n" /* Clear the bit that indicates the FPU is in use, see comment above. */
+                   " msr control, r0        \n"
+                   " cpsie i                \n" /* Globally enable interrupts. */
+                   " cpsie f                \n"
+                   " dsb                    \n"
+                   " isb                    \n"
+                   " svc 0                  \n" /* System call to start first task. */
+                   " nop                    \n");
 }
 /*-----------------------------------------------------------*/
 
@@ -280,12 +274,6 @@ BaseType_t xPortStartScheduler(void) {
     /* configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to 0.
     See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html */
     configASSERT(configMAX_SYSCALL_INTERRUPT_PRIORITY);
-
-    /* This port can be used on all revisions of the Cortex-M7 core other than
-    the r0p1 parts.  r0p1 parts should use the port from the
-    /source/portable/GCC/ARM_CM7/r0p1 directory. */
-    configASSERT(portCPUID != portCORTEX_M7_r0p1_ID);
-    configASSERT(portCPUID != portCORTEX_M7_r0p0_ID);
 
 #if (configASSERT_DEFINED == 1)
     {
@@ -363,7 +351,7 @@ BaseType_t xPortStartScheduler(void) {
     vPortEnableVFP();
 
     /* Lazy save always. */
-    *(portFPCCR) |= portASPEN_AND_LSPEN_BITS;
+    portFPCCR |= portASPEN_AND_LSPEN_BITS;
 
     /* Start the first task. */
     prvPortStartFirstTask();
@@ -374,10 +362,13 @@ BaseType_t xPortStartScheduler(void) {
     functionality by defining configTASK_RETURN_ADDRESS.  Call
     vTaskSwitchContext() so link time optimisation does not remove the
     symbol. */
-    vTaskSwitchContext();
-    prvTaskExitError();
+    // vTaskSwitchContext();
+    // prvTaskExitError();
 
     /* Should not get here! */
+    printf_debug("PANIC in xPortStartScheduler\n");
+    configASSERT(0);
+
     return 0;
 }
 /*-----------------------------------------------------------*/
@@ -643,7 +634,7 @@ __attribute__((weak)) void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTi
  * Setup the systick timer to generate the tick interrupts at the required
  * frequency.
  */
-__attribute__((weak)) void vPortSetupTimerInterrupt(void) {
+void vPortSetupTimerInterrupt(void) {
 /* Calculate the constants required to configure the tick interrupt. */
 #if (configUSE_TICKLESS_IDLE == 1)
     {

@@ -261,8 +261,8 @@ typedef struct tskTaskControlBlock /* The old naming convention is used to preve
     UBaseType_t uxPriority; /*< The priority of the task.  0 is the lowest priority. */
     StackType_t* pxStack; /*< Points to the start of the stack. */
     char pcTaskName[configMAX_TASK_NAME_LEN];
-        /*< Descriptive name given to the task when created.  Facilitates debugging only. */ /*lint !e971 Unqualified char types are allowed for strings and
-                                                                                                single characters only. */
+    /*< Descriptive name given to the task when created.  Facilitates debugging only. */ /*lint !e971 Unqualified char types are allowed for strings and
+                                                                                            single characters only. */
 
 #if ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
     StackType_t* pxEndOfStack; /*< Points to the highest valid address for the stack. */
@@ -406,7 +406,7 @@ PRIVILEGED_DATA static uint32_t ulTotalRunTime = 0UL; /*< Holds the total amount
 /* Callback function prototypes. --------------------------*/
 #if (configCHECK_FOR_STACK_OVERFLOW > 0)
 
-extern void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName);
+extern void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) __attribute__((section(".flashmem")));
 
 #endif
 
@@ -551,7 +551,7 @@ static char* prvWriteNameToBuffer(char* pcBuffer, const char* pcTaskName) PRIVIL
  * Called after a Task_t structure has been allocated either statically or
  * dynamically to fill in the structure's members.
  */
-static void prvInitialiseNewTask(TaskFunction_t pxTaskCode,
+static __attribute__((section(".flashmem"))) void prvInitialiseNewTask(TaskFunction_t pxTaskCode,
     const char* const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
     const uint32_t ulStackDepth, void* const pvParameters, UBaseType_t uxPriority, TaskHandle_t* const pxCreatedTask, TCB_t* pxNewTCB,
     const MemoryRegion_t* const xRegions) PRIVILEGED_FUNCTION;
@@ -560,7 +560,7 @@ static void prvInitialiseNewTask(TaskFunction_t pxTaskCode,
  * Called after a new task has been created and initialised to place the task
  * under the control of the scheduler.
  */
-static void prvAddNewTaskToReadyList(TCB_t* pxNewTCB) PRIVILEGED_FUNCTION;
+static __attribute__((section(".flashmem"))) void prvAddNewTaskToReadyList(TCB_t* pxNewTCB) PRIVILEGED_FUNCTION;
 
 /*
  * freertos_tasks_c_additions_init() should only be called if the user definable
@@ -3107,7 +3107,7 @@ void vTaskAllocateMPURegions(TaskHandle_t xTaskToModify, const MemoryRegion_t* c
 #endif /* portUSING_MPU_WRAPPERS */
 /*-----------------------------------------------------------*/
 
-static void prvInitialiseTaskLists(void) {
+static __attribute__((section(".flashmem"))) void prvInitialiseTaskLists(void) {
     UBaseType_t uxPriority;
 
     for (uxPriority = (UBaseType_t) 0U; uxPriority < (UBaseType_t) configMAX_PRIORITIES; uxPriority++) {
@@ -3265,7 +3265,7 @@ static UBaseType_t prvListTasksWithinSingleList(TaskStatus_t* pxTaskStatusArray,
 
 #if ((configUSE_TRACE_FACILITY == 1) || (INCLUDE_uxTaskGetStackHighWaterMark == 1) || (INCLUDE_uxTaskGetStackHighWaterMark2 == 1))
 
-static configSTACK_DEPTH_TYPE prvTaskCheckFreeStackSpace(const uint8_t* pucStackByte) {
+static __attribute__((section(".flashmem"))) configSTACK_DEPTH_TYPE prvTaskCheckFreeStackSpace(const uint8_t* pucStackByte) {
     uint32_t ulCount = 0U;
 
     while (*pucStackByte == (uint8_t) tskSTACK_FILL_BYTE) {
@@ -3347,8 +3347,8 @@ static void prvDeleteTCB(TCB_t* pxTCB) {
     want to allocate and clean RAM statically. */
     portCLEAN_UP_TCB(pxTCB);
 
-/* Free up the memory allocated by the scheduler for the task.  It is up
-to the task to free any memory allocated at the application level. */
+    /* Free up the memory allocated by the scheduler for the task.  It is up
+    to the task to free any memory allocated at the application level. */
 #if (configUSE_NEWLIB_REENTRANT == 1)
     { _reclaim_reent(&(pxTCB->xNewLib_reent)); }
 #endif /* configUSE_NEWLIB_REENTRANT */
@@ -3918,8 +3918,8 @@ void vTaskGetRunTimeStats(char* pcWriteBuffer) {
                     }
 #endif
                 } else {
-/* If the percentage is zero here then the task has
-consumed less than 1% of the total run time. */
+                    /* If the percentage is zero here then the task has
+                    consumed less than 1% of the total run time. */
 #ifdef portLU_PRINTF_SPECIFIER_REQUIRED
                     { sprintf(pcWriteBuffer, "\t%lu\t\t<1%%\r\n", pxTaskStatusArray[x].ulRunTimeCounter); }
 #else
@@ -4517,24 +4517,3 @@ static void prvAddCurrentTaskToDelayedList(TickType_t xTicksToWait, const BaseTy
     }
 #endif /* INCLUDE_vTaskSuspend */
 }
-
-/* Code below here allows additional code to be inserted into this source file,
-especially where access to file scope functions and data is needed (for example
-when performing module tests). */
-
-#ifdef FREERTOS_MODULE_TEST
-#include "tasks_test_access_functions.h"
-#endif
-
-
-#if (configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1)
-
-#include "freertos_tasks_c_additions.h"
-
-#ifdef FREERTOS_TASKS_C_ADDITIONS_INIT
-static void freertos_tasks_c_additions_init(void) {
-    FREERTOS_TASKS_C_ADDITIONS_INIT();
-}
-#endif
-
-#endif

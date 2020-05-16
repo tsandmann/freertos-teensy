@@ -132,10 +132,10 @@ in the system. */
 typedef struct xTASK_STATUS {
     TaskHandle_t xHandle; /* The handle of the task to which the rest of the information in the structure relates. */
     const char* pcTaskName;
-        /* A pointer to the task's name.  This value will be invalid if the task was deleted since the structure was populated! */ /*lint !e971 Unqualified char
-                                                                                                                                      types are allowed for
-                                                                                                                                      strings and single
-                                                                                                                                      characters only. */
+    /* A pointer to the task's name.  This value will be invalid if the task was deleted since the structure was populated! */ /*lint !e971 Unqualified char
+                                                                                                                                  types are allowed for
+                                                                                                                                  strings and single
+                                                                                                                                  characters only. */
     UBaseType_t xTaskNumber; /* A number unique to the task. */
     eTaskState eCurrentState; /* The state in which the task existed when the structure was populated. */
     UBaseType_t uxCurrentPriority; /* The priority at which the task was running (may be inherited) when the structure was populated. */
@@ -698,7 +698,7 @@ void vTaskAllocateMPURegions(TaskHandle_t xTask, const MemoryRegion_t* const pxR
  * \defgroup vTaskDelete vTaskDelete
  * \ingroup Tasks
  */
-void vTaskDelete(TaskHandle_t xTaskToDelete) PRIVILEGED_FUNCTION;
+void vTaskDelete(TaskHandle_t xTaskToDelete) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /*-----------------------------------------------------------
  * TASK CONTROL API
@@ -963,7 +963,8 @@ eTaskState eTaskGetState(TaskHandle_t xTask) PRIVILEGED_FUNCTION;
  * \defgroup vTaskGetInfo vTaskGetInfo
  * \ingroup TaskCtrl
  */
-void vTaskGetInfo(TaskHandle_t xTask, TaskStatus_t* pxTaskStatus, BaseType_t xGetFreeStackSpace, eTaskState eState) PRIVILEGED_FUNCTION;
+void vTaskGetInfo(TaskHandle_t xTask, TaskStatus_t* pxTaskStatus, BaseType_t xGetFreeStackSpace, eTaskState eState) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem")));
 
 /**
  * task. h
@@ -1167,7 +1168,7 @@ BaseType_t xTaskResumeFromISR(TaskHandle_t xTaskToResume) PRIVILEGED_FUNCTION;
  * \defgroup vTaskStartScheduler vTaskStartScheduler
  * \ingroup SchedulerControl
  */
-void vTaskStartScheduler(void) PRIVILEGED_FUNCTION;
+void vTaskStartScheduler(void) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /**
  * task. h
@@ -1223,7 +1224,7 @@ void vTaskStartScheduler(void) PRIVILEGED_FUNCTION;
  * \defgroup vTaskEndScheduler vTaskEndScheduler
  * \ingroup SchedulerControl
  */
-void vTaskEndScheduler(void) PRIVILEGED_FUNCTION;
+void vTaskEndScheduler(void) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /**
  * task. h
@@ -1373,7 +1374,7 @@ TickType_t xTaskGetTickCountFromISR(void) PRIVILEGED_FUNCTION;
  * \defgroup uxTaskGetNumberOfTasks uxTaskGetNumberOfTasks
  * \ingroup TaskUtils
  */
-UBaseType_t uxTaskGetNumberOfTasks(void) PRIVILEGED_FUNCTION;
+UBaseType_t uxTaskGetNumberOfTasks(void) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /**
  * task. h
@@ -1386,7 +1387,8 @@ UBaseType_t uxTaskGetNumberOfTasks(void) PRIVILEGED_FUNCTION;
  * \defgroup pcTaskGetName pcTaskGetName
  * \ingroup TaskUtils
  */
-char* pcTaskGetName(TaskHandle_t xTaskToQuery) PRIVILEGED_FUNCTION; /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+char* pcTaskGetName(TaskHandle_t xTaskToQuery) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem"))); /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
 
 /**
  * task. h
@@ -1402,8 +1404,8 @@ char* pcTaskGetName(TaskHandle_t xTaskToQuery) PRIVILEGED_FUNCTION; /*lint !e971
  * \defgroup pcTaskGetHandle pcTaskGetHandle
  * \ingroup TaskUtils
  */
-TaskHandle_t xTaskGetHandle(
-    const char* pcNameToQuery) PRIVILEGED_FUNCTION; /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+TaskHandle_t xTaskGetHandle(const char* pcNameToQuery) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem"))); /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
 
 /**
  * task.h
@@ -1430,7 +1432,7 @@ TaskHandle_t xTaskGetHandle(
  * actual spaces on the stack rather than bytes) since the task referenced by
  * xTask was created.
  */
-UBaseType_t uxTaskGetStackHighWaterMark(TaskHandle_t xTask) PRIVILEGED_FUNCTION;
+UBaseType_t uxTaskGetStackHighWaterMark(TaskHandle_t xTask) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /**
  * task.h
@@ -1457,7 +1459,7 @@ UBaseType_t uxTaskGetStackHighWaterMark(TaskHandle_t xTask) PRIVILEGED_FUNCTION;
  * actual spaces on the stack rather than bytes) since the task referenced by
  * xTask was created.
  */
-configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2(TaskHandle_t xTask) PRIVILEGED_FUNCTION;
+configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2(TaskHandle_t xTask) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /* When using trace macros it is sometimes necessary to include task.h before
 FreeRTOS.h.  When this is done TaskHookFunction_t will not yet have been defined,
@@ -1530,7 +1532,7 @@ BaseType_t xTaskCallApplicationTaskHook(TaskHandle_t xTask, void* pvParameter) P
  * Simply returns the handle of the idle task.  It is not valid to call
  * xTaskGetIdleTaskHandle() before the scheduler has been started.
  */
-TaskHandle_t xTaskGetIdleTaskHandle(void) PRIVILEGED_FUNCTION;
+TaskHandle_t xTaskGetIdleTaskHandle(void) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
 
 /**
  * configUSE_TRACE_FACILITY must be defined as 1 in FreeRTOSConfig.h for
@@ -1630,7 +1632,8 @@ TaskHandle_t xTaskGetIdleTaskHandle(void) PRIVILEGED_FUNCTION;
     }
     </pre>
  */
-UBaseType_t uxTaskGetSystemState(TaskStatus_t* const pxTaskStatusArray, const UBaseType_t uxArraySize, uint32_t* const pulTotalRunTime) PRIVILEGED_FUNCTION;
+UBaseType_t uxTaskGetSystemState(TaskStatus_t* const pxTaskStatusArray, const UBaseType_t uxArraySize, uint32_t* const pulTotalRunTime) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem")));
 
 /**
  * task. h
@@ -1677,7 +1680,8 @@ UBaseType_t uxTaskGetSystemState(TaskStatus_t* const pxTaskStatusArray, const UB
  * \defgroup vTaskList vTaskList
  * \ingroup TaskUtils
  */
-void vTaskList(char* pcWriteBuffer) PRIVILEGED_FUNCTION; /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+void vTaskList(char* pcWriteBuffer) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem"))); /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
 
 /**
  * task. h
@@ -1731,7 +1735,8 @@ void vTaskList(char* pcWriteBuffer) PRIVILEGED_FUNCTION; /*lint !e971 Unqualifie
  * \defgroup vTaskGetRunTimeStats vTaskGetRunTimeStats
  * \ingroup TaskUtils
  */
-void vTaskGetRunTimeStats(char* pcWriteBuffer) PRIVILEGED_FUNCTION; /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+void vTaskGetRunTimeStats(char* pcWriteBuffer) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem"))); /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
 
 /**
  * task. h

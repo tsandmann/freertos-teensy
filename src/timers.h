@@ -1228,7 +1228,8 @@ BaseType_t xTimerPendFunctionCall(PendedFunction_t xFunctionToPend, void* pvPara
  *
  * @return The name assigned to the timer specified by the xTimer parameter.
  */
-const char* pcTimerGetName(TimerHandle_t xTimer) PRIVILEGED_FUNCTION; /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+const char* pcTimerGetName(TimerHandle_t xTimer) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem"))); /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
 
 /**
  * void vTimerSetReloadMode( TimerHandle_t xTimer, const UBaseType_t uxAutoReload );

@@ -29,6 +29,9 @@
 #ifndef PORTMACRO_H
 #define PORTMACRO_H
 
+#include "imxrt.h"
+#include "mpu_wrappers.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -87,7 +90,7 @@ not need to be guarded with a critical section. */
         __asm volatile("isb");                                                     \
     }
 
-#define portNVIC_INT_CTRL_REG (*((volatile uint32_t*) 0xe000ed04))
+#define portNVIC_INT_CTRL_REG SCB_ICSR
 #define portNVIC_PENDSVSET_BIT (1UL << 28UL)
 #define portEND_SWITCHING_ISR(xSwitchRequired) \
     if (xSwitchRequired != pdFALSE)            \
@@ -121,6 +124,15 @@ extern void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTime);
 #endif
 /*-----------------------------------------------------------*/
 
+/* portNOP() is not required by this port. */
+#define portNOP()
+
+#define portINLINE __inline
+
+#define portFORCE_INLINE inline __attribute__((always_inline))
+
+#define portDONT_DISCARD __attribute__((used))
+
 /* Architecture specific optimisations. */
 #ifndef configUSE_PORT_OPTIMISED_TASK_SELECTION
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 1
@@ -129,7 +141,7 @@ extern void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTime);
 #if configUSE_PORT_OPTIMISED_TASK_SELECTION == 1
 
 /* Generic helper function. */
-__attribute__((always_inline)) static inline uint8_t ucPortCountLeadingZeros(uint32_t ulBitmap) {
+static portFORCE_INLINE uint8_t ucPortCountLeadingZeros(uint32_t ulBitmap) {
     uint8_t ucReturn;
 
     __asm volatile("clz %0, %1" : "=r"(ucReturn) : "r"(ulBitmap) : "memory");
@@ -158,16 +170,7 @@ void vPortValidateInterruptPriority(void);
 #define portASSERT_IF_INTERRUPT_PRIORITY_INVALID() vPortValidateInterruptPriority()
 #endif
 
-/* portNOP() is not required by this port. */
-#define portNOP()
-
-#define portINLINE __inline
-
-#ifndef portFORCE_INLINE
-#define portFORCE_INLINE inline __attribute__((always_inline))
-#endif
-
-portFORCE_INLINE static BaseType_t xPortIsInsideInterrupt(void) {
+static portFORCE_INLINE BaseType_t xPortIsInsideInterrupt(void) {
     uint32_t ulCurrentInterrupt;
     BaseType_t xReturn;
 
@@ -185,7 +188,7 @@ portFORCE_INLINE static BaseType_t xPortIsInsideInterrupt(void) {
 
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static void vPortRaiseBASEPRI(void) {
+static portFORCE_INLINE void vPortRaiseBASEPRI(void) {
     uint32_t ulNewBASEPRI;
 
     __asm volatile("	mov %0, %1												\n"
@@ -199,7 +202,7 @@ portFORCE_INLINE static void vPortRaiseBASEPRI(void) {
 
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static uint32_t ulPortRaiseBASEPRI(void) {
+static portFORCE_INLINE uint32_t ulPortRaiseBASEPRI(void) {
     uint32_t ulOriginalBASEPRI, ulNewBASEPRI;
 
     __asm volatile("	mrs %0, basepri											\n"
@@ -217,12 +220,25 @@ portFORCE_INLINE static uint32_t ulPortRaiseBASEPRI(void) {
 }
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static void vPortSetBASEPRI(uint32_t ulNewMaskValue) {
-    __asm volatile("	msr basepri, %0	" ::"r"(ulNewMaskValue) : "memory");
+static portFORCE_INLINE void vPortSetBASEPRI(uint32_t ulNewMaskValue) {
+    __asm volatile("msr basepri, %0" ::"r"(ulNewMaskValue) : "memory");
 }
 /*-----------------------------------------------------------*/
 
-#define portMEMORY_BARRIER() __asm volatile("" ::: "memory")
+#define portMEMORY_BARRIER() __asm volatile("isb")
+
+/*
+ * Map to the memory management routines required for the port.
+ */
+void* malloc(size_t) __attribute__((__malloc__, __warn_unused_result__, __alloc_size__(1)));
+static portFORCE_INLINE void* pvPortMalloc(size_t xSize) PRIVILEGED_FUNCTION {
+    return malloc(xSize);
+}
+
+void free(void*) PRIVILEGED_FUNCTION;
+static portFORCE_INLINE void vPortFree(void* pv) PRIVILEGED_FUNCTION {
+    free(pv);
+}
 
 #ifdef __cplusplus
 }
