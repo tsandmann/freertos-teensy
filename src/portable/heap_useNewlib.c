@@ -51,19 +51,19 @@
 
 #include <stdlib.h> // maps to newlib...
 #include <malloc.h> // mallinfo...
-#include <errno.h>  // ENOMEM
+#include <errno.h> // ENOMEM
 #include <stdbool.h>
 #include <stddef.h>
 
 #include "newlib.h"
 #if (__NEWLIB__ != 3) || (__NEWLIB_MINOR__ != 0)
-  #warning "This wrapper was verified for newlib version 3.0.0; please ensure newlib's external requirements for malloc-family are unchanged!"
+#warning "This wrapper was verified for newlib version 3.0.0; please ensure newlib's external requirements for malloc-family are unchanged!"
 #endif
 
 #include "freeRTOS.h" // defines public interface we're implementing here
-#if !defined(configUSE_NEWLIB_REENTRANT) ||  (configUSE_NEWLIB_REENTRANT!=1)
-  #warning "#define configUSE_NEWLIB_REENTRANT 1 // Required for thread-safety of newlib sprintf, strtok, etc..."
-  // If you're *REALLY* sure you don't need FreeRTOS's newlib reentrancy support, remove this warning...
+#if !defined(configUSE_NEWLIB_REENTRANT) || (configUSE_NEWLIB_REENTRANT != 1)
+#warning "#define configUSE_NEWLIB_REENTRANT 1 // Required for thread-safety of newlib sprintf, strtok, etc..."
+// If you're *REALLY* sure you don't need FreeRTOS's newlib reentrancy support, remove this warning...
 #endif
 #include "task.h"
 
@@ -72,7 +72,7 @@
 // ================================================================================================
 
 #ifndef NDEBUG
-    static int totalBytesProvidedBySBRK = 0;
+static int totalBytesProvidedBySBRK = 0;
 #endif
 
 // Simplistic sbrk implementations assume stack grows downwards from top of memory,
@@ -82,104 +82,116 @@
 // When using this module, stacks are allocated from malloc pool, still always prior
 // current unused heap area...
 #if defined(__MCUXPRESSO)
-  #define configLINKER_HEAP_BASE_SYMBOL _pvHeapStart
-  #define configLINKER_HEAP_LIMIT_SYMBOL _pvHeapLimit
-  #define configLINKER_HEAP_SIZE_SYMBOL _HeapSize
+#define configLINKER_HEAP_BASE_SYMBOL _pvHeapStart
+#define configLINKER_HEAP_LIMIT_SYMBOL _pvHeapLimit
+#define configLINKER_HEAP_SIZE_SYMBOL _HeapSize
 #elif defined(__GNUC__)
-  #define configLINKER_HEAP_BASE_SYMBOL end
-  #define configLINKER_HEAP_LIMIT_SYMBOL __HeapLimit
-  #define configLINKER_HEAP_SIZE_SYMBOL HEAP_SIZE
+#define configLINKER_HEAP_BASE_SYMBOL end
+#define configLINKER_HEAP_LIMIT_SYMBOL __HeapLimit
+#define configLINKER_HEAP_SIZE_SYMBOL HEAP_SIZE
 #endif
 extern char configLINKER_HEAP_BASE_SYMBOL;
 extern char configLINKER_HEAP_LIMIT_SYMBOL;
 extern char configLINKER_HEAP_SIZE_SYMBOL;
 
-static int heapBytesRemaining = (int)&configLINKER_HEAP_SIZE_SYMBOL; // that's (&__HeapLimit)-(&__HeapBase)
+static int heapBytesRemaining = (int) &configLINKER_HEAP_SIZE_SYMBOL; // that's (&__HeapLimit)-(&__HeapBase)
 
 //! sbrk/_sbrk version supporting reentrant newlib (depends upon above symbols defined by linker control file).
-char * sbrk(int incr) {
-    static char *currentHeapEnd = &configLINKER_HEAP_BASE_SYMBOL;
+char* sbrk(int incr) {
+    static char* currentHeapEnd = &configLINKER_HEAP_BASE_SYMBOL;
     vTaskSuspendAll(); // Note: safe to use before FreeRTOS scheduler started
-    char *previousHeapEnd = currentHeapEnd;
+    char* previousHeapEnd = currentHeapEnd;
     if (currentHeapEnd + incr > &configLINKER_HEAP_LIMIT_SYMBOL) {
-        #if( configUSE_MALLOC_FAILED_HOOK == 1 )
+#if (configUSE_MALLOC_FAILED_HOOK == 1)
         {
-            extern void vApplicationMallocFailedHook( void );
+            extern void vApplicationMallocFailedHook(void);
             vApplicationMallocFailedHook();
         }
-        #elif 1 // safest default when user doesn't explicitly code configUSE_MALLOC_FAILED_HOOK
-            // If you want to alert debugger or halt...
-            while(1) { __asm("bkpt #0"); }; // Stop in GUI as if at a breakpoint (if debugging, otherwise loop forever)
-        #else
-            // If you prefer to believe your application will gracefully trap out-of-memory...
-            _impure_ptr->_errno = ENOMEM; // newlib's thread-specific errno
-            xTaskResumeAll();
-        #endif
-        return (char *)-1; // the malloc-family routine that called sbrk will return 0
+#elif 1 // safest default when user doesn't explicitly code configUSE_MALLOC_FAILED_HOOK
+        // If you want to alert debugger or halt...
+        while (1) {
+            __asm("bkpt #0");
+        }; // Stop in GUI as if at a breakpoint (if debugging, otherwise loop forever)
+#else
+        // If you prefer to believe your application will gracefully trap out-of-memory...
+        _impure_ptr->_errno = ENOMEM; // newlib's thread-specific errno
+        xTaskResumeAll();
+#endif
+        return (char*) -1; // the malloc-family routine that called sbrk will return 0
     }
     // 'incr' of memory is available: update accounting and return it.
     currentHeapEnd += incr;
     heapBytesRemaining -= incr;
-    #ifndef NDEBUG
-        totalBytesProvidedBySBRK += incr;
-    #endif
+#ifndef NDEBUG
+    totalBytesProvidedBySBRK += incr;
+#endif
     xTaskResumeAll();
-    return (char *) previousHeapEnd;
+    return (char*) previousHeapEnd;
 }
 //! Synonym for sbrk.
-char * _sbrk(int incr) { return sbrk(incr); };
+char* _sbrk(int incr) {
+    return sbrk(incr);
+};
 
-void __malloc_lock(struct _reent *p)   { configASSERT( !xPortIsInsideInterrupt() ); // Make damn sure no mallocs inside ISRs!!
-                                               vTaskSuspendAll(); };
-void __malloc_unlock(struct _reent *p) { (void)xTaskResumeAll();  };
+void __malloc_lock(struct _reent* p) {
+    configASSERT(!xPortIsInsideInterrupt()); // Make damn sure no mallocs inside ISRs!!
+    vTaskSuspendAll();
+};
+void __malloc_unlock(struct _reent* p) {
+    (void) xTaskResumeAll();
+};
 
 // newlib also requires implementing locks for the application's environment memory space,
 // accessed by newlib's setenv() and getenv() functions.
 // As these are trivial functions, momentarily suspend task switching (rather than semaphore).
 // ToDo: Move __env_lock/unlock to a separate newlib helper file.
-void __env_lock()    {       vTaskSuspendAll(); };
-void __env_unlock()  { (void)xTaskResumeAll();  };
+void __env_lock() {
+    vTaskSuspendAll();
+};
+void __env_unlock() {
+    (void) xTaskResumeAll();
+};
 
 #if 1 // Provide malloc debug and accounting wrappers
-  /// /brief  Wrap malloc/malloc_r to help debug who requests memory and why.
-  /// To use these, add linker options: -Xlinker --wrap=malloc -Xlinker --wrap=_malloc_r
-  // Note: These functions are normally unused and stripped by linker.
-  int TotalMallocdBytes;
-  int MallocCallCnt;
-  static bool inside_malloc;
-  void *__wrap_malloc(size_t nbytes) {
-    extern void * __real_malloc(size_t nbytes);
+/// /brief  Wrap malloc/malloc_r to help debug who requests memory and why.
+/// To use these, add linker options: -Xlinker --wrap=malloc -Xlinker --wrap=_malloc_r
+// Note: These functions are normally unused and stripped by linker.
+int TotalMallocdBytes;
+int MallocCallCnt;
+static bool inside_malloc;
+void* __wrap_malloc(size_t nbytes) {
+    extern void* __real_malloc(size_t nbytes);
     MallocCallCnt++;
     TotalMallocdBytes += nbytes;
     inside_malloc = true;
-      void *p = __real_malloc(nbytes); // will call malloc_r...
+    void* p = __real_malloc(nbytes); // will call malloc_r...
     inside_malloc = false;
     return p;
-  };
-  void *__wrap__malloc_r(void *reent, size_t nbytes) {
-    extern void * __real__malloc_r(size_t nbytes);
-    if(!inside_malloc) {
-      MallocCallCnt++;
-      TotalMallocdBytes += nbytes;
+};
+void* __wrap__malloc_r(void* reent, size_t nbytes) {
+    extern void* __real__malloc_r(size_t nbytes);
+    if (!inside_malloc) {
+        MallocCallCnt++;
+        TotalMallocdBytes += nbytes;
     };
-    void *p = __real__malloc_r(nbytes);
+    void* p = __real__malloc_r(nbytes);
     return p;
-  };
+};
 #endif
 
 // ================================================================================================
 // Implement FreeRTOS's memory API using newlib-provided malloc family.
 // ================================================================================================
 
-void *pvPortMalloc( size_t xSize ) PRIVILEGED_FUNCTION {
-    void *p = malloc(xSize);
+void* pvPortMalloc(size_t xSize) PRIVILEGED_FUNCTION {
+    void* p = malloc(xSize);
     return p;
 }
-void vPortFree( void *pv ) PRIVILEGED_FUNCTION {
+void vPortFree(void* pv) PRIVILEGED_FUNCTION {
     free(pv);
 };
 
-size_t xPortGetFreeHeapSize( void ) PRIVILEGED_FUNCTION {
+size_t xPortGetFreeHeapSize(void) PRIVILEGED_FUNCTION {
     struct mallinfo mi = mallinfo(); // available space now managed by newlib
     return mi.fordblks + heapBytesRemaining; // plus space not yet handed to newlib by sbrk
 }
@@ -188,4 +200,4 @@ size_t xPortGetFreeHeapSize( void ) PRIVILEGED_FUNCTION {
 // So, no implementation is provided: size_t xPortGetMinimumEverFreeHeapSize( void ) PRIVILEGED_FUNCTION;
 
 //! No implementation needed, but stub provided in case application already calls vPortInitialiseBlocks
-void vPortInitialiseBlocks( void ) PRIVILEGED_FUNCTION {};
+void vPortInitialiseBlocks(void) PRIVILEGED_FUNCTION {};
