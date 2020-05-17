@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <malloc.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "teensy.h"
 #include "util/atomic.h"
@@ -67,14 +68,17 @@ void serial_puts(const char* str) {
  * @param[in] expr: Expression that failed as C-string
  */
 void assert_blink(const char* file, int line, const char* func, const char* expr) {
+    ::Serial.println();
     ::Serial.print("ASSERT in [");
     ::Serial.print(file);
     ::Serial.print(':');
     ::Serial.print(line, 10);
-    ::Serial.print("] ");
+    ::Serial.println("]");
+    ::Serial.print("\t");
     ::Serial.print(func);
     ::Serial.print(": ");
     ::Serial.println(expr);
+    ::Serial.println();
     ::Serial.flush();
 
     freertos::error_blink(1);
@@ -110,13 +114,13 @@ static __attribute__((section(".flashmem"))) void delay_ms(const uint32_t ms) {
 
 void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
-    ::pinMode(LED_BUILTIN, OUTPUT);
+    ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
 
     while (true) {
         for (uint8_t i {}; i < n; ++i) {
-            ::digitalWriteFast(LED_BUILTIN, true);
+            ::digitalWriteFast(arduino::LED_BUILTIN, true);
             delay_ms(300UL);
-            ::digitalWriteFast(LED_BUILTIN, false);
+            ::digitalWriteFast(arduino::LED_BUILTIN, false);
             delay_ms(300UL);
         }
         delay_ms(2'000UL);
@@ -317,6 +321,16 @@ void __env_lock() { // FIXME: check
 void __env_unlock() { // FIXME: check
     ::xTaskResumeAll();
 };
+
+int _getpid() {
+    return reinterpret_cast<int>(::xTaskGetCurrentTaskHandle());
+}
+
+int _gettimeofday(timeval* tv, void*) {
+    const auto now_us { freertos::get_us() };
+    *tv = timeval { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
+    return 0;
+}
 
 size_t xPortGetFreeHeapSize() PRIVILEGED_FUNCTION {
     const struct mallinfo mi = ::mallinfo();

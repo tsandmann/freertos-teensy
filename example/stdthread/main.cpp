@@ -25,36 +25,45 @@
 
 #include "arduino_freertos.h"
 
+#include <thread>
+#include <chrono>
+
 
 static void task1(void*) {
     while (true) {
-        ::digitalWrite(13, LOW);
+        ::digitalWrite(arduino::LED_BUILTIN, arduino::LOW);
         ::vTaskDelay(pdMS_TO_TICKS(500));
 
-        ::digitalWrite(13, HIGH);
+        ::digitalWrite(arduino::LED_BUILTIN, arduino::HIGH);
         ::vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
 static void task2(void*) {
-    while (true) {
-        ::Serial.println("TICK");
-        ::vTaskDelay(pdMS_TO_TICKS(1'000));
+    std::thread t { []() {
+        ::vTaskPrioritySet(nullptr, 3);
+        while (true) {
+            ::Serial.println("TICK");
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(1s);
 
-        ::Serial.println("TOCK");
-        ::vTaskDelay(pdMS_TO_TICKS(1'000));
-    }
+            ::Serial.println("TOCK");
+            std::this_thread::sleep_for(1s);
+        }
+    } };
+
+    ::vTaskSuspend(nullptr);
 }
 
 void setup() {
     ::Serial.begin(115'200);
-    ::pinMode(13, OUTPUT);
-    ::digitalWrite(13, HIGH);
+    ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
+    ::digitalWrite(arduino::LED_BUILTIN, arduino::HIGH);
 
     ::delay(2'000);
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
-    ::xTaskCreate(task2, "task2", 128, nullptr, 2, nullptr);
+    ::xTaskCreate(task2, "task2", 128, nullptr, tskIDLE_PRIORITY, nullptr);
 
     ::Serial.println("setup(): starting scheduler...");
     ::Serial.flush();
