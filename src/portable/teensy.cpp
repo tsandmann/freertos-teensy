@@ -284,7 +284,7 @@ void* _sbrk(ptrdiff_t incr) {
         || (reinterpret_cast<uintptr_t>(current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
         printf_debug("_sbrk(%u): no mem available.\n", incr);
 #if configUSE_MALLOC_FAILED_HOOK == 1
-        vApplicationMallocFailedHook();
+        ::vApplicationMallocFailedHook();
 #else
         _impure_ptr->_errno = ENOMEM;
 #endif

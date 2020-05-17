@@ -99,12 +99,20 @@
 #ifdef NDEBUG
 #define configASSERT(condition) ((void) 0)
 #else
+#ifdef __cplusplus
+extern "C" {
+#endif
 void assert_blink(const char*, int, const char*, const char*) __attribute__((section(".flashmem")));
-#define ASSERT_LOG(_msg)                                                              \
-    {                                                                                 \
-        static const char __file[] __attribute__((section(".progmem"))) = __FILE__;   \
-        assert_blink((const char*) &__file[0], __LINE__, __PRETTY_FUNCTION__, #_msg); \
+#ifdef __cplusplus
+}
+#define ASSERT_LOG(_msg) assert_blink("", __LINE__, __PRETTY_FUNCTION__, #_msg);
+#else
+#define ASSERT_LOG(_msg)                                                            \
+    {                                                                               \
+        static const char _file_[] __attribute__((section(".progmem"))) = __FILE__; \
+        assert_blink((const char*) _file_, __LINE__, __PRETTY_FUNCTION__, #_msg);   \
     }
+#endif
 #define configASSERT(_e) \
     if (_e) {            \
         (void) 0;        \

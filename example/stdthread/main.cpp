@@ -27,28 +27,33 @@
 
 #include <thread>
 #include <chrono>
+#include <time.h>
 
 
 static void task1(void*) {
     while (true) {
         ::digitalWrite(arduino::LED_BUILTIN, arduino::LOW);
-        ::vTaskDelay(pdMS_TO_TICKS(500));
+        ::vTaskDelay(pdMS_TO_TICKS(250));
 
         ::digitalWrite(arduino::LED_BUILTIN, arduino::HIGH);
-        ::vTaskDelay(pdMS_TO_TICKS(500));
+        ::vTaskDelay(pdMS_TO_TICKS(250));
     }
 }
 
 static void task2(void*) {
     std::thread t { []() {
         ::vTaskPrioritySet(nullptr, 3);
+
+        struct timeval tv;
+
         while (true) {
             ::Serial.println("TICK");
             using namespace std::chrono_literals;
-            std::this_thread::sleep_for(1s);
+            std::this_thread::sleep_for(500ms);
 
-            ::Serial.println("TOCK");
-            std::this_thread::sleep_for(1s);
+            ::gettimeofday(&tv, nullptr);
+            ::Serial.printf("TOCK\tnow: %lu s\n\r", tv.tv_sec);
+            std::this_thread::sleep_for(500ms);
         }
     } };
 
