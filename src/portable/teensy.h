@@ -25,9 +25,7 @@
 
 #pragma once
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "Arduino.h"
+#include "arduino_freertos.h"
 
 #include <cstdint>
 #include <tuple>

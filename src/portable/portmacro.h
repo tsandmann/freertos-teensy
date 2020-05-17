@@ -225,7 +225,7 @@ static portFORCE_INLINE void vPortSetBASEPRI(uint32_t ulNewMaskValue) {
 }
 /*-----------------------------------------------------------*/
 
-#define portMEMORY_BARRIER() __asm volatile("isb")
+#define portMEMORY_BARRIER() __asm volatile("dmb" ::: "memory")
 
 /*
  * Map to the memory management routines required for the port.
