@@ -65,10 +65,11 @@ void setup() {
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
     ::digitalWrite(arduino::LED_BUILTIN, arduino::HIGH);
 
-    ::delay(2'000);
+    while (::millis() < 1'500) {
+    }
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
-    ::xTaskCreate(task2, "task2", 128, nullptr, tskIDLE_PRIORITY, nullptr);
+    ::xTaskCreate(task2, "task2", 128, nullptr, configMAX_PRIORITIES - 1, nullptr);
 
     ::Serial.println("setup(): starting scheduler...");
     ::Serial.flush();

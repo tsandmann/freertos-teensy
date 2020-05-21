@@ -1418,11 +1418,15 @@ BaseType_t xQueueCRReceive(QueueHandle_t xQueue, void* pvBuffer, TickType_t xTic
  * xSemaphoreCreateCounting() or xSemaphoreGetMutexHolder() instead of calling
  * these functions directly.
  */
-QueueHandle_t xQueueCreateMutex(const uint8_t ucQueueType) PRIVILEGED_FUNCTION;
-QueueHandle_t xQueueCreateMutexStatic(const uint8_t ucQueueType, StaticQueue_t* pxStaticQueue) PRIVILEGED_FUNCTION;
-QueueHandle_t xQueueCreateCountingSemaphore(const UBaseType_t uxMaxCount, const UBaseType_t uxInitialCount) PRIVILEGED_FUNCTION;
+QueueHandle_t xQueueCreateMutex(const uint8_t ucQueueType) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
+;
+QueueHandle_t xQueueCreateMutexStatic(const uint8_t ucQueueType, StaticQueue_t* pxStaticQueue) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
+QueueHandle_t xQueueCreateCountingSemaphore(const UBaseType_t uxMaxCount, const UBaseType_t uxInitialCount) PRIVILEGED_FUNCTION
+    __attribute__((section(".flashmem")));
+;
 QueueHandle_t xQueueCreateCountingSemaphoreStatic(
-    const UBaseType_t uxMaxCount, const UBaseType_t uxInitialCount, StaticQueue_t* pxStaticQueue) PRIVILEGED_FUNCTION;
+    const UBaseType_t uxMaxCount, const UBaseType_t uxInitialCount, StaticQueue_t* pxStaticQueue) PRIVILEGED_FUNCTION __attribute__((section(".flashmem")));
+;
 BaseType_t xQueueSemaphoreTake(QueueHandle_t xQueue, TickType_t xTicksToWait) PRIVILEGED_FUNCTION;
 TaskHandle_t xQueueGetMutexHolder(QueueHandle_t xSemaphore) PRIVILEGED_FUNCTION;
 TaskHandle_t xQueueGetMutexHolderFromISR(QueueHandle_t xSemaphore) PRIVILEGED_FUNCTION;

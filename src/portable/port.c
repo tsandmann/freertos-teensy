@@ -247,7 +247,10 @@ void vPortSVCHandler(void) {
 }
 /*-----------------------------------------------------------*/
 
+void init_retarget_locks();
 static void prvPortStartFirstTask(void) {
+    init_retarget_locks();
+
     /* Start the first task.  This also clears the bit that indicates the FPU is
     in use in case the FPU was used before the scheduler was started - which
     would otherwise result in the unnecessary leaving of space in the SVC stack
