@@ -28,8 +28,10 @@
 #include <malloc.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/lock.h>
 
 #include "teensy.h"
+#include "semphr.h"
 #include "util/atomic.h"
 #define __ASM __asm
 #define __STATIC_INLINE static inline
@@ -363,5 +365,90 @@ void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackT
     *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 #endif // configUSE_TIMERS
+
+
+StaticSemaphore_t __lock___sinit_recursive_mutex;
+StaticSemaphore_t __lock___sfp_recursive_mutex;
+StaticSemaphore_t __lock___atexit_recursive_mutex;
+StaticSemaphore_t __lock___at_quick_exit_mutex;
+StaticSemaphore_t __lock___env_recursive_mutex;
+StaticSemaphore_t __lock___tz_mutex;
+StaticSemaphore_t __lock___dd_hash_mutex;
+StaticSemaphore_t __lock___arc4random_mutex;
+
+__attribute__((section(".flashmem"))) void init_retarget_locks() {
+    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sinit_recursive_mutex);
+    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sfp_recursive_mutex);
+    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___atexit_recursive_mutex);
+    ::xSemaphoreCreateMutexStatic(&__lock___at_quick_exit_mutex);
+    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___env_recursive_mutex);
+    ::xSemaphoreCreateMutexStatic(&__lock___tz_mutex);
+    ::xSemaphoreCreateMutexStatic(&__lock___dd_hash_mutex);
+    ::xSemaphoreCreateMutexStatic(&__lock___arc4random_mutex);
+}
+#else // configSUPPORT_STATIC_ALLOCATION == 0
+#warning "untested!"
+SemaphoreHandle_t __lock___sinit_recursive_mutex;
+SemaphoreHandle_t __lock___sfp_recursive_mutex;
+SemaphoreHandle_t __lock___atexit_recursive_mutex;
+SemaphoreHandle_t __lock___at_quick_exit_mutex;
+SemaphoreHandle_t __lock___env_recursive_mutex;
+SemaphoreHandle_t __lock___tz_mutex;
+SemaphoreHandle_t __lock___dd_hash_mutex;
+SemaphoreHandle_t __lock___arc4random_mutex;
+
+__attribute__((section(".flashmem"))) void init_retarget_locks() {
+    __lock___sinit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
+    __lock___sfp_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
+    __lock___atexit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
+    __lock___at_quick_exit_mutex = ::xSemaphoreCreateMutex();
+    __lock___env_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
+    __lock___tz_mutex = ::xSemaphoreCreateMutex();
+    __lock___dd_hash_mutex = ::xSemaphoreCreateMutex();
+    __lock___arc4random_mutex = ::xSemaphoreCreateMutex();
+}
 #endif // configSUPPORT_STATIC_ALLOCATION
+
+void __retarget_lock_init(_LOCK_T* lock_ptr) {
+    auto ptr { reinterpret_cast<QueueHandle_t*>(lock_ptr) };
+    *ptr = ::xSemaphoreCreateMutex();
+}
+
+void __retarget_lock_init_recursive(_LOCK_T* lock_ptr) {
+    auto ptr { reinterpret_cast<QueueHandle_t*>(lock_ptr) };
+    *ptr = ::xSemaphoreCreateRecursiveMutex();
+}
+
+void __retarget_lock_close(_LOCK_T lock) {
+    ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+}
+
+void __retarget_lock_close_recursive(_LOCK_T lock) {
+    ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+}
+
+void __retarget_lock_acquire(_LOCK_T lock) {
+    ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+}
+
+void __retarget_lock_acquire_recursive(_LOCK_T lock) {
+    ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+}
+
+int __retarget_lock_try_acquire(_LOCK_T lock) {
+    return ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), 0);
+}
+
+int __retarget_lock_try_acquire_recursive(_LOCK_T lock) {
+    return ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), 0);
+}
+
+void __retarget_lock_release(_LOCK_T lock) {
+    ::xSemaphoreGive(reinterpret_cast<QueueHandle_t>(lock));
+}
+
+void __retarget_lock_release_recursive(_LOCK_T lock) {
+    ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
+}
+
 } // extern C
