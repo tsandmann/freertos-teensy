@@ -137,7 +137,7 @@ void gthr_freertos::resume(std::thread* p_thread) {
     ::vTaskResume(p_thread->native_handle().get_native_handle());
 }
 
-void* gthr_freertos::get_freertos_handle(std::thread* p_thread) {
+TaskHandle_t gthr_freertos::get_freertos_handle(std::thread* p_thread) {
     return p_thread->native_handle().get_native_handle();
 }
 

@@ -224,7 +224,7 @@ public:
 
     static void resume(std::thread* p_thread);
 
-    static void* get_freertos_handle(std::thread* p_thread);
+    static TaskHandle_t get_freertos_handle(std::thread* p_thread);
 
     ~gthr_freertos() = default;
 

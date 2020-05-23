@@ -31,10 +31,10 @@
 #include "task.h"
 #include "Arduino.h"
 #include "Print.h"
-#if defined(__has_include) && __has_include(<WireKinetis.h>)
-#include "WireKinetis.h"
+#if defined(__has_include) && __has_include("Wire.h")
+#include "Wire.h"
 #endif
-#if defined(__has_include) && __has_include(<SPI.h>)
+#if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
 #endif
 
@@ -122,15 +122,15 @@ using ::SPI1;
 using ::SPI2;
 #endif // _SPI_H_INCLUDED
 using ::Stream;
-#ifdef TwoWireKinetis_h
+#if defined TwoWireKinetis_h || defined TwoWireIMXRT_h
 using ::TwoWire;
 using ::Wire;
 using ::Wire1;
 using ::Wire2;
-#ifdef WIRE_IMPLEMENT_WIRE3
+#if defined TwoWireKinetis_h && defined WIRE_IMPLEMENT_WIRE3
 using ::Wire3;
 #endif
-#endif // TwoWireKinetis_h
+#endif // TwoWireKinetis_h || defined TwoWireIMXRT_h
 
 using ::String;
 
@@ -160,5 +160,15 @@ static constexpr uint8_t HIGH { 1 };
 static constexpr uint8_t FALLING { 2 };
 static constexpr uint8_t RISING { 3 };
 static constexpr uint8_t CHANGE { 4 };
+
+#if defined(__IMXRT1062__) && defined(ARDUINO_TEENSY40)
+static constexpr bool digitalPinHasPWM(uint8_t p) {
+    return ((p) <= 15 || (p) == 18 || (p) == 19 || ((p) >= 22 && (p) <= 25) || ((p) >= 28 && (p) <= 31) || (p) == 33);
+}
+#elif defined(__IMXRT1062__) && defined(ARDUINO_TEENSY41)
+static constexpr bool digitalPinHasPWM(uint8_t p) {
+    return ((p) <= 15 || (p) == 18 || (p) == 19 || ((p) >= 22 && (p) <= 25) || ((p) >= 28 && (p) <= 31) || (p) == 33);
+}
+#endif
 
 } // namespace arduino
