@@ -78,7 +78,7 @@ void assert_blink(const char* file, int line, const char* func, const char* expr
     ::Serial.println("]");
     ::Serial.print("\t");
     ::Serial.print(func);
-    ::Serial.print(": ");
+    ::Serial.print("(): ");
     ::Serial.println(expr);
     ::Serial.println();
     ::Serial.flush();

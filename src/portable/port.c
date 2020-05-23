@@ -359,15 +359,6 @@ BaseType_t xPortStartScheduler(void) {
     /* Start the first task. */
     prvPortStartFirstTask();
 
-    /* Should never get here as the tasks will now be executing!  Call the task
-    exit error function to prevent compiler warnings about a static function
-    not being called in the case that the application writer overrides this
-    functionality by defining configTASK_RETURN_ADDRESS.  Call
-    vTaskSwitchContext() so link time optimisation does not remove the
-    symbol. */
-    // vTaskSwitchContext();
-    // prvTaskExitError();
-
     /* Should not get here! */
     printf_debug("PANIC in xPortStartScheduler\n");
     configASSERT(0);
@@ -377,9 +368,14 @@ BaseType_t xPortStartScheduler(void) {
 /*-----------------------------------------------------------*/
 
 void vPortEndScheduler(void) {
+    /* Stop and clear the SysTick. */
+    portNVIC_SYSTICK_CTRL_REG = 0UL;
+    portNVIC_SYSTICK_CURRENT_VALUE_REG = 0UL;
+    portENABLE_INTERRUPTS();
+
     /* Not implemented in ports where there is nothing to return to.
     Artificially force an assert. */
-    configASSERT(uxCriticalNesting == 1000UL);
+    configASSERT(0);
 }
 /*-----------------------------------------------------------*/
 
