@@ -254,6 +254,8 @@ void vPortSetupTimerInterrupt() {
     printf_debug("vPortSetupTimerInterrupt() done.\n");
 }
 
+extern "C" void setup_systick_with_timer_events() {}
+
 #if configUSE_MALLOC_FAILED_HOOK == 1
 static __attribute__((section(".flashmem"))) void vApplicationMallocFailedHook() {
     freertos::error_blink(2);
