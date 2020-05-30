@@ -28,10 +28,10 @@
 
 static void task1(void*) {
     while (true) {
-        ::digitalWrite(13, LOW);
+        ::digitalWriteFast(arduino::LED_BUILTIN, arduino::LOW);
         ::vTaskDelay(pdMS_TO_TICKS(500));
 
-        ::digitalWrite(13, HIGH);
+        ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
         ::vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -48,8 +48,8 @@ static void task2(void*) {
 
 void setup() {
     ::Serial.begin(115'200);
-    ::pinMode(13, OUTPUT);
-    ::digitalWrite(13, HIGH);
+    ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
+    ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
 
     ::delay(2'000);
 
