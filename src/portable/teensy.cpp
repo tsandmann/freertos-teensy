@@ -31,12 +31,15 @@
 #include <sys/lock.h>
 
 #include "teensy.h"
+#include "event_responder_support.h"
+
 #include "semphr.h"
 #include "util/atomic.h"
 #define __ASM __asm
 #define __STATIC_INLINE static inline
 #define __CORTEX_M 7
 #include "core_cmInstr.h"
+
 
 extern "C" {
 asm(".global _printf_float"); /**< printf supporting floating point values */
@@ -55,6 +58,7 @@ extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern volatile uint32_t scale_cpu_cycles_to_microseconds;
 extern uint32_t systick_safe_read;
+extern uint32_t set_arm_clock(uint32_t frequency);
 
 
 void serial_puts(const char* str) {
@@ -71,14 +75,14 @@ void serial_puts(const char* str) {
  */
 void assert_blink(const char* file, int line, const char* func, const char* expr) {
     ::Serial.println();
-    ::Serial.print("ASSERT in [");
+    ::Serial.print(PSTR("ASSERT in ["));
     ::Serial.print(file);
     ::Serial.print(':');
     ::Serial.print(line, 10);
-    ::Serial.println("]");
-    ::Serial.print("\t");
+    ::Serial.println(PSTR("]"));
+    ::Serial.print('\t');
     ::Serial.print(func);
-    ::Serial.print("(): ");
+    ::Serial.print(PSTR("(): "));
     ::Serial.println(expr);
     ::Serial.println();
     ::Serial.flush();
@@ -103,20 +107,22 @@ static __attribute__((section(".flashmem"))) void delay_ms(const uint32_t ms) {
     for (uint32_t i {}; i < n; ++i) {
         // poll_usb();
 
-        for (uint32_t i {}; i < 10UL * (F_CPU / 2'100UL); ++i) { // FIXME: check time, should be ~10 ms
+        for (uint32_t i {}; i < 10UL * (10'000'000UL / 2'100UL); ++i) { // FIXME: check time, should be ~10 ms
             __asm volatile("nop");
         }
     }
 
-    const uint32_t iterations { (ms % 10) * (F_CPU / 2'100UL) }; // FIXME: check time // remainder
+    const uint32_t iterations { (ms % 10) * (10'000'000UL / 2'100UL) }; // FIXME: check time // remainder
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
+    __isb();
 }
 
 void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
+    ::set_arm_clock(10'000'000UL);
 
     while (true) {
         for (uint8_t i {}; i < n; ++i) {
@@ -152,28 +158,28 @@ void print_ram_usage() {
     const auto info1 { ram1_usage() };
     const auto info2 { ram2_usage() };
 
-    ::Serial.print("RAM1 size: ");
+    ::Serial.print(PSTR("RAM1 size: "));
     ::Serial.print(std::get<5>(info1) / 1024UL, 10);
-    ::Serial.print(" KB, free RAM1: ");
+    ::Serial.print(PSTR(" KB, free RAM1: "));
     ::Serial.print(std::get<0>(info1) / 1024UL, 10);
-    ::Serial.print(" KB, data used: ");
+    ::Serial.print(PSTR(" KB, data used: "));
     ::Serial.print((std::get<1>(info1)) / 1024UL, 10);
-    ::Serial.print(" KB, bss used: ");
+    ::Serial.print(PSTR(" KB, bss used: "));
     ::Serial.print(std::get<2>(info1) / 1024UL, 10);
-    ::Serial.print(" KB, used heap: ");
+    ::Serial.print(PSTR(" KB, used heap: "));
     ::Serial.print(std::get<3>(info1) / 1024UL, 10);
-    ::Serial.print(" KB, system free: ");
+    ::Serial.print(PSTR(" KB, system free: "));
     ::Serial.print(std::get<4>(info1) / 1024UL, 10);
-    ::Serial.println(" KB");
+    ::Serial.println(PSTR(" KB"));
 
-    ::Serial.print("RAM2 size: ");
+    ::Serial.print(PSTR("RAM2 size: "));
     ::Serial.print(std::get<1>(info2) / 1024UL, 10);
-    ::Serial.print(" KB, free RAM2: ");
+    ::Serial.print(PSTR(" KB, free RAM2: "));
     ::Serial.print(std::get<0>(info2) / 1024UL, 10);
-    ::Serial.print(" KB, used RAM2: ");
+    ::Serial.print(PSTR(" KB, used RAM2: "));
     ::Serial.print((std::get<1>(info2) - std::get<0>(info2)) / 1024UL, 10);
 
-    ::Serial.println(" KB");
+    ::Serial.println(PSTR(" KB"));
 }
 
 uint64_t get_us() {
@@ -186,18 +192,17 @@ uint64_t get_us() {
     const uint32_t cyccnt { ARM_DWT_CYCCNT };
     __dmb();
     const uint32_t ccdelta { cyccnt - scc };
-    uint64_t frac { (static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32 };
+    uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
     if (frac > 1'000) {
         frac = 1'000;
     }
-    return static_cast<uint64_t>(smc) * 1'000UL + frac;
+    return static_cast<uint64_t>(smc) * 1'000ULL + frac;
 }
 } // namespace freertos
 
 extern "C" {
 #if configUSE_TICK_HOOK > 0
 void vApplicationTickHook();
-
 void vApplicationTickHook() {
     systick_cycle_count = ARM_DWT_CYCCNT;
     systick_millis_count++;
@@ -214,9 +219,9 @@ void vApplicationIdleHook() {
 void startup_late_hook() __attribute__((section(".flashmem")));
 
 void startup_late_hook() {
-    printf_debug("startup_late_hook()\n");
+    printf_debug(PSTR("startup_late_hook()\n"));
     ::vTaskSuspendAll();
-    printf_debug("startup_late_hook() done.\n");
+    printf_debug(PSTR("startup_late_hook() done.\n"));
 }
 
 void xPortPendSVHandler();
@@ -225,7 +230,7 @@ void vPortSVCHandler();
 void vPortSetupTimerInterrupt() __attribute__((section(".flashmem")));
 
 void vPortSetupTimerInterrupt() {
-    printf_debug("vPortSetupTimerInterrupt()\n");
+    printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
 
     /* stop and clear the SysTick */
     SYST_CSR = 0;
@@ -233,7 +238,7 @@ void vPortSetupTimerInterrupt() {
 
     /* override arduino vector table entries */
     _VectorsRam[11] = vPortSVCHandler;
-    _VectorsRam[14] = xPortPendSVHandler; // FIXME: configure timer/notifications for EventResponder
+    _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
 
     /* configure SysTick to interrupt at the requested rate */
@@ -249,12 +254,20 @@ void vPortSetupTimerInterrupt() {
     }
 #endif // configUSE_TICKLESS_IDLE
 
+    freertos::setup_event_responder();
+
     ::xTaskResumeAll();
 
-    printf_debug("vPortSetupTimerInterrupt() done.\n");
+    printf_debug(PSTR("vPortSetupTimerInterrupt() done.\n"));
 }
 
 extern "C" void setup_systick_with_timer_events() {}
+
+extern "C" void event_responder_set_pend_sv() {
+    if (freertos::g_event_responder_task) {
+        ::xTaskNotify(freertos::g_event_responder_task, 0, eNoAction);
+    }
+}
 
 #if configUSE_MALLOC_FAILED_HOOK == 1
 static __attribute__((section(".flashmem"))) void vApplicationMallocFailedHook() {
@@ -268,7 +281,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     static char taskname[configMAX_TASK_NAME_LEN + 1];
 
     std::memcpy(taskname, task_name, configMAX_TASK_NAME_LEN);
-    ::serial_puts("STACK OVERFLOW: ");
+    ::serial_puts(PSTR("STACK OVERFLOW: "));
     ::serial_puts(taskname);
 
     freertos::error_blink(3);
@@ -277,16 +290,16 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 void* _sbrk(ptrdiff_t incr) {
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
-    // printf_debug("_sbrk(%u)\n", incr);
-    // printf_debug("current_heap_end=0x%x\n", reinterpret_cast<uintptr_t>(current_heap_end));
-    // printf_debug("_ebss=0x%x\n", reinterpret_cast<uintptr_t>(&_ebss));
-    // printf_debug("_estack=0x%x\n", reinterpret_cast<uintptr_t>(&_estack));
+    // printf_debug(PSTR("_sbrk(%u)\n"), incr);
+    // printf_debug(PSTR("current_heap_end=0x%x\n"), reinterpret_cast<uintptr_t>(current_heap_end));
+    // printf_debug(PSTR("_ebss=0x%x\n"), reinterpret_cast<uintptr_t>(&_ebss));
+    // printf_debug(PSTR("_estack=0x%x\n"), reinterpret_cast<uintptr_t>(&_estack));
 
     void* previous_heap_end { current_heap_end };
 
     if ((reinterpret_cast<uintptr_t>(current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
         || (reinterpret_cast<uintptr_t>(current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
-        printf_debug("_sbrk(%u): no mem available.\n", incr);
+        printf_debug(PSTR("_sbrk(%u): no mem available.\n"), incr);
 #if configUSE_MALLOC_FAILED_HOOK == 1
         ::vApplicationMallocFailedHook();
 #else
@@ -451,6 +464,117 @@ void __retarget_lock_release(_LOCK_T lock) {
 
 void __retarget_lock_release_recursive(_LOCK_T lock) {
     ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
+}
+
+void HardFault_HandlerC(unsigned int* hardfault_args) __attribute__((section(".flashmem"), used));
+void HardFault_HandlerC(unsigned int* hardfault_args) {
+    unsigned int sp;
+    __asm__ volatile("mov %0, sp" : "=r"(sp)::);
+
+    unsigned int addr;
+    __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
+
+    ::vTaskSuspendAll();
+
+    ::Serial.print(PSTR("Fault IRQ:    0x"));
+    ::Serial.println(addr & 0x1ff, 16);
+    ::Serial.print(PSTR(" sp:          0x"));
+    ::Serial.println(sp, 16);
+    ::Serial.print(PSTR(" stacked_r0:  0x"));
+    ::Serial.println(hardfault_args[0], 16);
+    ::Serial.print(PSTR(" stacked_r1:  0x"));
+    ::Serial.println(hardfault_args[1], 16);
+    ::Serial.print(PSTR(" stacked_r2:  0x"));
+    ::Serial.println(hardfault_args[2], 16);
+    ::Serial.print(PSTR(" stacked_r3:  0x"));
+    ::Serial.println(hardfault_args[3], 16);
+    ::Serial.print(PSTR(" stacked_r12: 0x"));
+    ::Serial.println(hardfault_args[4], 16);
+    ::Serial.print(PSTR(" stacked_lr:  0x"));
+    ::Serial.println(hardfault_args[5], 16);
+    ::Serial.print(PSTR(" stacked_pc:  0x"));
+    ::Serial.println(hardfault_args[6], 16);
+    ::Serial.print(PSTR(" stacked_psr: 0x"));
+    ::Serial.println(hardfault_args[7], 16);
+
+    const auto _CFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED28);
+    ::Serial.print(PSTR(" _CFSR:       0x"));
+    ::Serial.println(_CFSR, 16);
+
+    if (_CFSR > 0) {
+        /* Memory Management Faults */
+        if ((_CFSR & 1) == 1) {
+            ::Serial.println(PSTR("  (IACCVIOL)    Instruction Access Violation"));
+        } else if (((_CFSR & (0x02)) >> 1) == 1) {
+            ::Serial.println(PSTR("  (DACCVIOL)    Data Access Violation"));
+        } else if (((_CFSR & (0x08)) >> 3) == 1) {
+            ::Serial.println(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking"));
+        } else if (((_CFSR & (0x10)) >> 4) == 1) {
+            ::Serial.println(PSTR("  (MSTKERR)     MemMange Fault on stacking"));
+        } else if (((_CFSR & (0x20)) >> 5) == 1) {
+            ::Serial.println(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State"));
+        }
+        if (((_CFSR & (0x80)) >> 7) == 1) {
+            ::Serial.println(PSTR("  (MMARVALID)   MemMange Fault Address Valid"));
+        }
+        /* Bus Fault Status Register */
+        if (((_CFSR & 0x100) >> 8) == 1) {
+            ::Serial.println(PSTR("  (IBUSERR)     Instruction Bus Error"));
+        } else if (((_CFSR & (0x200)) >> 9) == 1) {
+            ::Serial.println(PSTR("  (PRECISERR)   Data bus error(address in BFAR)"));
+        } else if (((_CFSR & (0x400)) >> 10) == 1) {
+            ::Serial.println(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction"));
+        } else if (((_CFSR & (0x800)) >> 11) == 1) {
+            ::Serial.println(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception"));
+        } else if (((_CFSR & (0x1000)) >> 12) == 1) {
+            ::Serial.println(PSTR("  (STKERR)      Bus Fault on stacking for exception entry"));
+        } else if (((_CFSR & (0x2000)) >> 13) == 1) {
+            ::Serial.println(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation"));
+        }
+        if (((_CFSR & (0x8000)) >> 15) == 1) {
+            ::Serial.println(PSTR("  (BFARVALID)   Bus Fault Address Valid"));
+        }
+        /* Usuage Fault Status Register */
+        if (((_CFSR & 0x10000) >> 16) == 1) {
+            ::Serial.println(PSTR("  (UNDEFINSTR)  Undefined instruction"));
+        } else if (((_CFSR & (0x20000)) >> 17) == 1) {
+            ::Serial.println(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)"));
+        } else if (((_CFSR & (0x40000)) >> 18) == 1) {
+            ::Serial.println(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN"));
+        } else if (((_CFSR & (0x80000)) >> 19) == 1) {
+            ::Serial.println(PSTR("  (NOCP)        No Coprocessor"));
+        } else if (((_CFSR & (0x1000000)) >> 24) == 1) {
+            ::Serial.println(PSTR("  (UNALIGNED)   Unaligned access UsageFault"));
+        } else if (((_CFSR & (0x2000000)) >> 25) == 1) {
+            ::Serial.println(PSTR("  (DIVBYZERO)   Divide by zero"));
+        }
+    }
+
+    const auto _HFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED2C);
+    ::Serial.print(PSTR(" _HFSR:       0x"));
+    ::Serial.println(_HFSR, 16);
+    if (_HFSR > 0) {
+        /* Memory Management Faults */
+        if (((_HFSR & (0x02)) >> 1) == 1) {
+            ::Serial.println(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read"));
+        } else if (((_HFSR & (0x40000000)) >> 30) == 1) {
+            ::Serial.println(PSTR("  (FORCED)      Forced Hard Fault"));
+        } else if (((_HFSR & (0x80000000)) >> 31) == 31) {
+            ::Serial.println(PSTR("  (DEBUGEVT)    Reserved for Debug"));
+        }
+    }
+
+    ::Serial.print(PSTR(" _DFSR:       0x"));
+    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED30), 16);
+    ::Serial.print(PSTR(" _AFSR:       0x"));
+    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED3C), 16);
+    ::Serial.print(PSTR(" _BFAR:       0x"));
+    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED38), 16);
+    ::Serial.print(PSTR(" _MMAR:       0x"));
+    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED34), 16);
+    ::Serial.flush();
+
+    freertos::error_blink(4);
 }
 
 } // extern C
