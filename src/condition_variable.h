@@ -39,8 +39,8 @@
 #include "semphr.h"
 #include "thread_gthread.h"
 
-#include <queue>
-
+#include <list>
+#include <algorithm>
 
 namespace free_rtos_std {
 
@@ -48,18 +48,21 @@ class semaphore {
 public:
     semaphore() {
         vSemaphoreCreateBinary(_xSemaphore);
+        // if (!_xSemaphore) {
+        //     std::__throw_system_error(12); // POSIX error: no memory
+        // }
         configASSERT(_xSemaphore);
     }
 
     void lock() {
-        ::xSemaphoreTake(_xSemaphore, portMAX_DELAY);
+        xSemaphoreTake(_xSemaphore, portMAX_DELAY);
     }
     void unlock() {
-        ::xSemaphoreGive(_xSemaphore);
+        xSemaphoreGive(_xSemaphore);
     }
 
     ~semaphore() {
-        ::vSemaphoreDelete(_xSemaphore);
+        vSemaphoreDelete(_xSemaphore);
     }
 
     semaphore(const semaphore&) = delete;
@@ -78,15 +81,18 @@ class cv_task_list {
 public:
     using __gthread_t = free_rtos_std::gthr_freertos;
     using thrd_type = __gthread_t::native_task_type;
-    using queue_type = std::queue<thrd_type>;
+    using queue_type = std::list<thrd_type>;
 
     cv_task_list() = default;
 
+    void remove(thrd_type thrd) {
+        _que.remove(thrd);
+    }
     void push(thrd_type thrd) {
-        _que.push(thrd);
+        _que.push_back(thrd);
     }
     void pop() {
-        _que.pop();
+        _que.pop_front();
     }
     bool empty() const {
         return _que.empty();

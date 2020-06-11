@@ -35,18 +35,43 @@
 
 #pragma once
 
-#include "arduino_freertos.h"
+#include "thread_gthread.h"
 
+#include <unordered_map>
+#include <mutex>
 
 namespace free_rtos_std {
-struct critical_section {
-    critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
+
+struct Key {
+    using __gthread_t = free_rtos_std::gthr_freertos;
+    typedef void (*DestructorFoo)(void*);
+
+    Key() = delete;
+    explicit Key(DestructorFoo des) : _desFoo { des } {}
+
+    void CallDestructor(__gthread_t::native_task_type task) {
+        void* val;
+
+        {
+            std::lock_guard<std::mutex> lg { _mtx };
+
+            auto item { _specValue.find(task) };
+            if (item == _specValue.end()) {
+                return;
+            }
+
+            val = const_cast<void*>(item->second);
+            _specValue.erase(item);
+        }
+
+        if (_desFoo && val) {
+            _desFoo(val);
+        }
     }
-    ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
-    }
+
+    std::mutex _mtx;
+    DestructorFoo _desFoo;
+    std::unordered_map<__gthread_t::native_task_type, const void*> _specValue;
 };
+
 } // namespace free_rtos_std

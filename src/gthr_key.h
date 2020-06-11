@@ -35,18 +35,11 @@
 
 #pragma once
 
-#include "arduino_freertos.h"
-
-
 namespace free_rtos_std {
-struct critical_section {
-    critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
-    }
-    ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
-    }
-};
+struct Key;
+
+int freertos_gthread_key_create(Key** keyp, void (*dtor)(void*));
+int freertos_gthread_key_delete(Key* key);
+void* freertos_gthread_getspecific(Key* key);
+int freertos_gthread_setspecific(Key* key, const void* ptr);
 } // namespace free_rtos_std

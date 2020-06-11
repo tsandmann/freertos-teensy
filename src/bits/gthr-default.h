@@ -39,6 +39,7 @@
 #include "semphr.h"
 #include "thread_gthread.h"
 #include "condition_variable.h"
+#include "gthr_key.h"
 
 #include <sys/time.h>
 
@@ -55,7 +56,7 @@ static int __gthread_active_p() {
     return 1;
 }
 
-typedef int __gthread_key_t;
+typedef free_rtos_std::Key* __gthread_key_t;
 typedef int __gthread_once_t;
 typedef SemaphoreHandle_t __gthread_mutex_t;
 typedef SemaphoreHandle_t __gthread_recursive_mutex_t;
@@ -64,76 +65,92 @@ typedef free_rtos_std::cv_task_list __gthread_cond_t;
 #define __GTHREAD_ONCE_INIT 0
 
 static inline void __GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION(__gthread_recursive_mutex_t* mutex) {
-    *mutex = ::xSemaphoreCreateRecursiveMutex();
+    *mutex = xSemaphoreCreateRecursiveMutex();
 }
 static inline void __GTHREAD_MUTEX_INIT_FUNCTION(__gthread_mutex_t* mutex) {
-    *mutex = ::xSemaphoreCreateMutex();
+    *mutex = xSemaphoreCreateMutex();
 }
 
 static int __gthread_once(__gthread_once_t* once, void (*func)(void)) {
-    static __gthread_mutex_t s_m { ::xSemaphoreCreateMutex() };
+    static __gthread_mutex_t s_m = xSemaphoreCreateMutex();
     if (!s_m) {
         return 12; // POSIX error: ENOMEM
     }
 
-    ::xSemaphoreTakeRecursive(s_m, portMAX_DELAY);
-    if (*once == false) {
-        *once = true;
+    __gthread_once_t flag { true };
+    xSemaphoreTakeRecursive(s_m, portMAX_DELAY);
+    std::swap(*once, flag);
+    xSemaphoreGiveRecursive(s_m);
+
+    if (flag == false) {
         func();
     }
-    ::xSemaphoreGiveRecursive(s_m);
+
     return 0;
 }
 
-static int __gthread_key_create(__gthread_key_t* keyp, void (*dtor)(void*)) {}
-static int __gthread_key_delete(__gthread_key_t key) {}
+static int __gthread_key_create(__gthread_key_t* keyp, void (*dtor)(void*)) {
+    return free_rtos_std::freertos_gthread_key_create(keyp, dtor);
+}
 
-static void* __gthread_getspecific(__gthread_key_t key) {}
-static int __gthread_setspecific(__gthread_key_t key, const void* ptr) {}
+static int __gthread_key_delete(__gthread_key_t key) {
+    return free_rtos_std::freertos_gthread_key_delete(key);
+}
 
+static void* __gthread_getspecific(__gthread_key_t key) {
+    return free_rtos_std::freertos_gthread_getspecific(key);
+}
+
+static int __gthread_setspecific(__gthread_key_t key, const void* ptr) {
+    return free_rtos_std::freertos_gthread_setspecific(key, ptr);
+}
+//////////
+
+//////////
 static inline int __gthread_mutex_destroy(__gthread_mutex_t* mutex) {
-    ::vSemaphoreDelete(*mutex);
+    vSemaphoreDelete(*mutex);
     return 0;
 }
 static inline int __gthread_recursive_mutex_destroy(__gthread_recursive_mutex_t* mutex) {
-    ::vSemaphoreDelete(*mutex);
+    vSemaphoreDelete(*mutex);
     return 0;
 }
 
 static inline int __gthread_mutex_lock(__gthread_mutex_t* mutex) {
-    return (::xSemaphoreTake(*mutex, portMAX_DELAY) == pdTRUE) ? 0 : 1;
+    return (xSemaphoreTake(*mutex, portMAX_DELAY) == pdTRUE) ? 0 : 1;
 }
 static inline int __gthread_mutex_trylock(__gthread_mutex_t* mutex) {
-    return (::xSemaphoreTake(*mutex, 0) == pdTRUE) ? 0 : 1;
+    return (xSemaphoreTake(*mutex, 0) == pdTRUE) ? 0 : 1;
 }
 static inline int __gthread_mutex_unlock(__gthread_mutex_t* mutex) {
-    return (::xSemaphoreGive(*mutex) == pdTRUE) ? 0 : 1;
+    return (xSemaphoreGive(*mutex) == pdTRUE) ? 0 : 1;
 }
 
 static inline int __gthread_recursive_mutex_lock(__gthread_recursive_mutex_t* mutex) {
-    return ::xSemaphoreTakeRecursive(*mutex, portMAX_DELAY);
+    return xSemaphoreTakeRecursive(*mutex, portMAX_DELAY);
 }
 static inline int __gthread_recursive_mutex_trylock(__gthread_recursive_mutex_t* mutex) {
-    return ::xSemaphoreTakeRecursive(*mutex, 0);
+    return xSemaphoreTakeRecursive(*mutex, 0);
 }
 static inline int __gthread_recursive_mutex_unlock(__gthread_recursive_mutex_t* mutex) {
-    return ::xSemaphoreGiveRecursive(*mutex);
+    return xSemaphoreGiveRecursive(*mutex);
 }
+////////////
 
-
+////////////
 #define __GTHREADS_CXX0X 1
 
 struct __gthread_time_t {
     long sec;
     long nsec;
-    long milliseconds() const {
-        return sec * 1000 + nsec / 1'000'000;
+    int64_t milliseconds() const {
+        return static_cast<int64_t>(sec) * 1'000 + nsec / 1'000'000;
     }
 };
 
 static inline __gthread_time_t operator-(const __gthread_time_t& lhs, const timeval& rhs) {
-    long s { lhs.sec - rhs.tv_sec };
-    long ns { lhs.nsec - rhs.tv_usec * 1000 };
+    int32_t s { lhs.sec - rhs.tv_sec };
+    int32_t ns { lhs.nsec - rhs.tv_usec * 1'000 };
     if (ns < 0) {
         --s;
         ns += 1'000'000;
@@ -143,22 +160,23 @@ static inline __gthread_time_t operator-(const __gthread_time_t& lhs, const time
 }
 
 static inline int __gthread_mutex_timedlock(__gthread_mutex_t* m, const __gthread_time_t* abs_timeout) {
-    timeval now;
-    ::gettimeofday(&now, NULL);
+    timeval now {};
+    gettimeofday(&now, NULL);
 
-    const auto t { (*abs_timeout - now).milliseconds() };
-    return ::xSemaphoreTake(*m, pdMS_TO_TICKS(t));
+    auto t = (*abs_timeout - now).milliseconds();
+    return xSemaphoreTake(*m, pdMS_TO_TICKS(t));
 }
 
 static inline int __gthread_recursive_mutex_timedlock(__gthread_recursive_mutex_t* m, const __gthread_time_t* abs_time) {
-    timeval now;
-    ::gettimeofday(&now, NULL);
+    timeval now {};
+    gettimeofday(&now, NULL);
 
-    const auto t { (*abs_time - now).milliseconds() };
-    return ::xSemaphoreTakeRecursive(*m, pdMS_TO_TICKS(t));
+    auto t = (*abs_time - now).milliseconds();
+    return xSemaphoreTakeRecursive(*m, pdMS_TO_TICKS(t));
 }
 
-// All functions returning int should return zero on success or the error number. If the operation is not supported, -1 is returned.
+// All functions returning int should return zero on success or the error
+//    number.  If the operation is not supported, -1 is returned.
 
 static inline int __gthread_create(__gthread_t* thread, void (*func)(void*), void* args) {
     return thread->create_thread(func, args) ? 0 : 1;
@@ -186,22 +204,27 @@ static inline int __gthread_yield(void) {
 }
 
 static inline int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mutex_t* mutex, const __gthread_time_t* abs_timeout) {
+    auto this_thrd_hndl { __gthread_t::native_task_handle() };
     cond->lock();
-    cond->push(__gthread_t::native_task_handle());
+    cond->push(this_thrd_hndl);
     cond->unlock();
 
-    timeval now;
-    ::gettimeofday(&now, NULL);
+    timeval now {};
+    gettimeofday(&now, NULL);
 
-    const long ms { (*abs_timeout - now).milliseconds() };
+    auto ms { (*abs_timeout - now).milliseconds() };
 
     __gthread_mutex_unlock(mutex);
+    auto fTimeout { 0 == ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms)) };
+    __gthread_mutex_lock(mutex);
 
     int result { 0 };
-    if (0 == ::ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(ms)))
+    if (fTimeout) { // timeout - remove the thread from the waiting list
+        cond->lock();
+        cond->remove(this_thrd_hndl);
+        cond->unlock();
         result = 138; // posix ETIMEDOUT
-
-    __gthread_mutex_lock(mutex);
+    }
 
     return result;
 }

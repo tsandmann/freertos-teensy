@@ -37,16 +37,25 @@
 
 #include "arduino_freertos.h"
 
+#include <chrono>
 
 namespace free_rtos_std {
-struct critical_section {
-    critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
-    }
-    ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
-    }
+class wall_clock {
+public:
+    struct time_data {
+        timeval offset;
+        TickType_t ticks;
+    };
+
+    static time_data time();
+
+    static void time(const timeval& time);
+
+    static timeval get_offset();
+
+private:
+    static timeval _timeOffset;
 };
+
+void set_system_clock(const std::chrono::time_point<std::chrono::system_clock, std::chrono::system_clock::duration>& time);
 } // namespace free_rtos_std

@@ -45,7 +45,7 @@ void serial_puts(const char* str) __attribute__((section(".flashmem")));
  * @param[in] func: Function name as C-string
  * @param[in] expr: Expression that failed as C-string
  */
-void assert_blink(const char* file, int line, const char* func, const char* expr) __attribute__((section(".flashmem")));
+void assert_blink(const char* file, int line, const char* func, const char* expr) __attribute__((noreturn, section(".flashmem")));
 } // extern C
 
 namespace freertos {

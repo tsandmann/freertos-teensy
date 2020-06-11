@@ -106,7 +106,13 @@ extern void vPortExitCritical(void);
 #define portDISABLE_INTERRUPTS() vPortRaiseBASEPRI()
 #define portENABLE_INTERRUPTS() vPortSetBASEPRI(0)
 #define portENTER_CRITICAL() vPortEnterCritical()
+/* #define portENTER_CRITICAL()                                            \
+    printf_debug("portENTER_CRITICAL from \"%s\"\n", __PRETTY_FUNCTION__); \
+    vPortEnterCritical() */
 #define portEXIT_CRITICAL() vPortExitCritical()
+/* #define portEXIT_CRITICAL()                                            \
+    printf_debug("portEXIT_CRITICAL from \"%s\"\n", __PRETTY_FUNCTION__); \
+    vPortExitCritical() */
 
 /*-----------------------------------------------------------*/
 
