@@ -99,19 +99,40 @@ public:
         _fOwner = false; // it is just a copy
     }
 
+    gthr_freertos(gthr_freertos&& r) {
+        taskENTER_CRITICAL();
+        if (r._fOwner) {
+            taskEXIT_CRITICAL();
+            // make sure it has already started
+            // - native thread function must make local copies first
+            r.wait_for_start();
+            taskENTER_CRITICAL();
+        }
+        // 'this' becomes the owner if r is the owner
+        move(std::forward<gthr_freertos>(r));
+        taskEXIT_CRITICAL();
+    }
+
     bool create_thread(task_foo foo, void* arg) {
         _arg = arg;
-        _evHandle = ::xEventGroupCreate();
+
+        _evHandle = xEventGroupCreate();
+        // if (!_evHandle) {
+        //     std::terminate();
+        // }
         configASSERT(_evHandle);
 
         {
             critical_section critical;
 
-            ::xTaskCreate(foo, "Task", next_stack_size_ ? next_stack_size_ / sizeof(StackType_t) : DEFAULT_STACK_SIZE / sizeof(StackType_t), this,
+            xTaskCreate(foo, "Task", next_stack_size_ ? next_stack_size_ / sizeof(StackType_t) : DEFAULT_STACK_SIZE / sizeof(StackType_t), this,
                 tskIDLE_PRIORITY + 1, &_taskHandle);
+            // if (!_taskHandle) {
+            //     std::terminate();
+            // }
             configASSERT(_taskHandle);
 
-            ::vTaskSetThreadLocalStoragePointer(_taskHandle, eEvStoragePos, _evHandle);
+            vTaskSetThreadLocalStoragePointer(_taskHandle, eEvStoragePos, _evHandle);
             _fOwner = true;
         }
 
@@ -131,8 +152,8 @@ public:
         //   checking if the task still exists and use critical section if it does.
         //   It is faster to use _evHandle directly, even if it is an extra item to
         //   copy each time when this instance is copied.
-        while (0 == ::xEventGroupWaitBits(_evHandle, eJoinEv | eStartedEv, pdFALSE, pdTRUE, portMAX_DELAY)) {
-        }
+        while (0 == xEventGroupWaitBits(_evHandle, eJoinEv | eStartedEv, pdFALSE, pdTRUE, portMAX_DELAY))
+            ;
     }
 
     void detach() { // Detaching is removing the event's object. It can be done
@@ -143,9 +164,9 @@ public:
             // the task is not deleted while accessing the task's local storage.
             critical_section critical;
 
-            if (eDeleted != ::eTaskGetState(_taskHandle)) {
-                ::vTaskSetThreadLocalStoragePointer(_taskHandle, eEvStoragePos, nullptr);
-                ::vEventGroupDelete(_evHandle);
+            if (eDeleted != eTaskGetState(_taskHandle)) {
+                vTaskSetThreadLocalStoragePointer(_taskHandle, eEvStoragePos, nullptr);
+                vEventGroupDelete(_evHandle);
 
                 // Thread still exists but detach removes ownership.
                 // Ownership belongs to the native thread. It will release the task
@@ -158,9 +179,7 @@ public:
     void notify_started() { // Function should be called only from the controlled task
         // and only when the (internal, not application's one) thread function
         // has started execution.
-        const auto evHnd { static_cast<EventGroupHandle_t>(pvTaskGetThreadLocalStoragePointer(nullptr, eEvStoragePos)) };
-        configASSERT(_evHandle == evHnd);
-        ::xEventGroupSetBits(_evHandle, eStartedEv);
+        xEventGroupSetBits(_evHandle, eStartedEv);
     }
 
     void notify_joined() { // Function should be called only from the controlled task
@@ -171,27 +190,27 @@ public:
             // Note: The _evHandle may be invalid if thread has been detached.
             //    It is required to get the handle from the thread itself.
             //    The detach function will set this handle to nullptr.
-            const auto evHnd { static_cast<EventGroupHandle_t>(pvTaskGetThreadLocalStoragePointer(_taskHandle, eEvStoragePos)) };
+            auto evHnd = static_cast<EventGroupHandle_t>(pvTaskGetThreadLocalStoragePointer(_taskHandle, eEvStoragePos));
 
             if (evHnd) {
-                ::xEventGroupSetBits(evHnd, eJoinEv);
+                xEventGroupSetBits(evHnd, eJoinEv);
             } else {
                 // thread has been detached, nothing to do
             }
         }
 
         // vTaskDelete will not return
-        ::vTaskDelete(nullptr);
+        vTaskDelete(nullptr);
     }
 
     static gthr_freertos self() {
-        const auto tHnd { ::xTaskGetCurrentTaskHandle() };
-        const auto evHnd { static_cast<EventGroupHandle_t>(::pvTaskGetThreadLocalStoragePointer(tHnd, eEvStoragePos)) };
+        auto tHnd = xTaskGetCurrentTaskHandle();
+        auto evHnd = static_cast<EventGroupHandle_t>(pvTaskGetThreadLocalStoragePointer(tHnd, eEvStoragePos));
         return gthr_freertos { tHnd, evHnd };
     }
 
     static native_task_type native_task_handle() {
-        return ::xTaskGetCurrentTaskHandle();
+        return xTaskGetCurrentTaskHandle();
     }
 
     native_task_type get_native_handle() const {
@@ -227,43 +246,41 @@ public:
     static TaskHandle_t get_freertos_handle(std::thread* p_thread);
 
     ~gthr_freertos() = default;
+    gthr_freertos& operator=(const gthr_freertos& r) = delete;
 
 private:
     gthr_freertos() = default;
 
     gthr_freertos(native_task_type thnd, EventGroupHandle_t ehnd) : _taskHandle { thnd }, _evHandle { ehnd } {}
 
-    gthr_freertos(gthr_freertos&& r) = delete;
-    gthr_freertos& operator=(const gthr_freertos& r) = delete;
-
     gthr_freertos& operator=(gthr_freertos&& r) {
         if (this == &r) {
             return *this;
         }
 
-        ::taskENTER_CRITICAL();
+        taskENTER_CRITICAL();
 
         if (_fOwner) { // If 'r' is the owner then 'this' will get the
             // new ownership. If 'r' is not the owner then
             // just a copy is being moved. Either way 'this'
             // ownership is lost and handles must be deleted.
-            if (eDeleted != ::eTaskGetState(_taskHandle)) {
-                ::vTaskDelete(_taskHandle);
+            if (eDeleted != eTaskGetState(_taskHandle)) {
+                vTaskDelete(_taskHandle);
             }
             if (_evHandle) {
-                ::vEventGroupDelete(_evHandle);
+                vEventGroupDelete(_evHandle);
             }
             _fOwner = false;
         } else if (r._fOwner) {
-            ::taskEXIT_CRITICAL();
+            taskEXIT_CRITICAL();
             // make sure it has already started
             // - native thread function must make local copies first
             r.wait_for_start();
-            ::taskENTER_CRITICAL();
+            taskENTER_CRITICAL();
         }
         // 'this' becomes the owner if r is the owner
         move(std::forward<gthr_freertos>(r));
-        ::taskEXIT_CRITICAL();
+        taskEXIT_CRITICAL();
         return *this;
     }
 
@@ -279,13 +296,13 @@ private:
     }
 
     void wait_for_start() {
-        while (0 == ::xEventGroupWaitBits(_evHandle, eStartedEv, pdFALSE, pdTRUE, portMAX_DELAY)) {
-        }
+        while (0 == xEventGroupWaitBits(_evHandle, eStartedEv, pdFALSE, pdTRUE, portMAX_DELAY))
+            ;
     }
 
-    native_task_type _taskHandle {};
-    EventGroupHandle_t _evHandle {};
-    void* _arg {};
+    native_task_type _taskHandle { nullptr };
+    EventGroupHandle_t _evHandle { nullptr };
+    void* _arg { nullptr };
     bool _fOwner { false };
 };
 

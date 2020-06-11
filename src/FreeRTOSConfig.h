@@ -61,7 +61,7 @@
 #define configUSE_TIME_SLICING                      0
 #define configUSE_NEWLIB_REENTRANT                  1
 #define configENABLE_BACKWARD_COMPATIBILITY         0
-#define configNUM_THREAD_LOCAL_STORAGE_POINTERS     1
+#define configNUM_THREAD_LOCAL_STORAGE_POINTERS     4
 
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION             1
@@ -99,11 +99,14 @@
 /* Define to trap errors during development. */
 #ifdef NDEBUG
 #define configASSERT(condition) ((void) 0)
+#define putchar_debug(...)
+#define printf_debug(...)
+#define ASSERT_LOG(...)
 #else
 #ifdef __cplusplus
 extern "C" {
 #endif
-void assert_blink(const char*, int, const char*, const char*) __attribute__((section(".flashmem")));
+void assert_blink(const char*, int, const char*, const char*) __attribute__((noreturn, section(".flashmem")));
 #ifdef __cplusplus
 }
 #define ASSERT_LOG(_msg) assert_blink("", __LINE__, __PRETTY_FUNCTION__, #_msg);
@@ -113,7 +116,7 @@ void assert_blink(const char*, int, const char*, const char*) __attribute__((sec
         static const char _file_[] __attribute__((section(".progmem"))) = __FILE__; \
         assert_blink((const char*) _file_, __LINE__, __PRETTY_FUNCTION__, #_msg);   \
     }
-#endif
+#endif // __cplusplus
 #define configASSERT(_e) \
     if (_e) {            \
         (void) 0;        \
@@ -126,8 +129,8 @@ void printf_debug(const char*, ...);
 #else
 #define putchar_debug(...)
 #define printf_debug(...)
-#endif
-#endif
+#endif // PRINT_DEBUG_STUFF
+#endif // NDEBUG
 
 #if configGENERATE_RUN_TIME_STATS == 1
 uint64_t freertos_get_us(void);

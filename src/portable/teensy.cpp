@@ -33,6 +33,7 @@
 #include "teensy.h"
 #include "event_responder_support.h"
 
+#include "freertos_time.h"
 #include "semphr.h"
 #include "util/atomic.h"
 #define __ASM __asm
@@ -261,9 +262,9 @@ void vPortSetupTimerInterrupt() {
     printf_debug(PSTR("vPortSetupTimerInterrupt() done.\n"));
 }
 
-extern "C" void setup_systick_with_timer_events() {}
+void setup_systick_with_timer_events() {}
 
-extern "C" void event_responder_set_pend_sv() {
+void event_responder_set_pend_sv() {
     if (freertos::g_event_responder_task) {
         ::xTaskNotify(freertos::g_event_responder_task, 0, eNoAction);
     }
@@ -345,7 +346,10 @@ int _getpid() {
 
 int _gettimeofday(timeval* tv, void*) {
     const auto now_us { freertos::get_us() };
-    *tv = timeval { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
+    const auto off { free_rtos_std::wall_clock::get_offset() };
+    const timeval now { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
+
+    timeradd(&off, &now, tv);
     return 0;
 }
 
@@ -390,6 +394,7 @@ StaticSemaphore_t __lock___env_recursive_mutex;
 StaticSemaphore_t __lock___tz_mutex;
 StaticSemaphore_t __lock___dd_hash_mutex;
 StaticSemaphore_t __lock___arc4random_mutex;
+static bool __locks_initialized {};
 
 __attribute__((section(".flashmem"))) void init_retarget_locks() {
     ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sinit_recursive_mutex);
@@ -400,6 +405,7 @@ __attribute__((section(".flashmem"))) void init_retarget_locks() {
     ::xSemaphoreCreateMutexStatic(&__lock___tz_mutex);
     ::xSemaphoreCreateMutexStatic(&__lock___dd_hash_mutex);
     ::xSemaphoreCreateMutexStatic(&__lock___arc4random_mutex);
+    __locks_initialized = true;
 }
 #else // configSUPPORT_STATIC_ALLOCATION == 0
 #warning "untested!"
@@ -421,6 +427,7 @@ __attribute__((section(".flashmem"))) void init_retarget_locks() {
     __lock___tz_mutex = ::xSemaphoreCreateMutex();
     __lock___dd_hash_mutex = ::xSemaphoreCreateMutex();
     __lock___arc4random_mutex = ::xSemaphoreCreateMutex();
+    __locks_initialized = true;
 }
 #endif // configSUPPORT_STATIC_ALLOCATION
 
@@ -435,35 +442,53 @@ void __retarget_lock_init_recursive(_LOCK_T* lock_ptr) {
 }
 
 void __retarget_lock_close(_LOCK_T lock) {
-    ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+    if (__locks_initialized) {
+        ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+    }
 }
 
 void __retarget_lock_close_recursive(_LOCK_T lock) {
-    ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+    if (__locks_initialized) {
+        ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
+    }
 }
 
 void __retarget_lock_acquire(_LOCK_T lock) {
-    ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+    if (__locks_initialized) {
+        ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+    }
 }
 
 void __retarget_lock_acquire_recursive(_LOCK_T lock) {
-    ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+    if (__locks_initialized) {
+        ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
+    }
 }
 
 int __retarget_lock_try_acquire(_LOCK_T lock) {
-    return ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), 0);
+    if (__locks_initialized) {
+        return ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), 0);
+    }
+    return 0;
 }
 
 int __retarget_lock_try_acquire_recursive(_LOCK_T lock) {
-    return ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), 0);
+    if (__locks_initialized) {
+        return ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), 0);
+    }
+    return 0;
 }
 
 void __retarget_lock_release(_LOCK_T lock) {
-    ::xSemaphoreGive(reinterpret_cast<QueueHandle_t>(lock));
+    if (__locks_initialized) {
+        ::xSemaphoreGive(reinterpret_cast<QueueHandle_t>(lock));
+    }
 }
 
 void __retarget_lock_release_recursive(_LOCK_T lock) {
-    ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
+    if (__locks_initialized) {
+        ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
+    }
 }
 
 void HardFault_HandlerC(unsigned int* hardfault_args) __attribute__((section(".flashmem"), used));

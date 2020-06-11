@@ -33,20 +33,36 @@
 /// adapted for use with the teensy FreeRTOS port by Timo Sandmann
 ///
 
-#pragma once
+#include "freertos_time.h"
+#include "critical_section.h"
 
-#include "arduino_freertos.h"
+#include <sys/time.h>
+#include <chrono>
 
 
 namespace free_rtos_std {
-struct critical_section {
-    critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
-    }
-    ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
-    }
-};
+wall_clock::time_data wall_clock::time() { // atomic
+    critical_section critical;
+    return time_data { _timeOffset, xTaskGetTickCount() };
+}
+
+void wall_clock::time(const timeval& time) { // atomic
+    critical_section critical;
+    _timeOffset = time;
+}
+
+timeval wall_clock::get_offset() {
+    return _timeOffset;
+}
+
+timeval wall_clock::_timeOffset;
+
+using namespace std::chrono;
+void set_system_clock(const time_point<system_clock, system_clock::duration>& time) {
+    auto delta { time - time_point<system_clock>(milliseconds(pdTICKS_TO_MS(xTaskGetTickCount()))) };
+    int64_t sec { duration_cast<seconds>(delta).count() };
+    int32_t usec = duration_cast<microseconds>(delta).count() - sec * 1'000'000; // narrowing type
+
+    free_rtos_std::wall_clock::time({ sec, usec });
+}
 } // namespace free_rtos_std

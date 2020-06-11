@@ -33,20 +33,53 @@
 /// adapted for use with the teensy FreeRTOS port by Timo Sandmann
 ///
 
-#pragma once
-
-#include "arduino_freertos.h"
+#include "gthr_key_type.h"
 
 
 namespace free_rtos_std {
-struct critical_section {
-    critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
+
+Key* s_key;
+
+int freertos_gthread_key_create(Key** keyp, void (*dtor)(void*)) {
+    // There is only one key for all threads. If more keys are needed
+    // a list must be implemented.
+    configASSERT(!s_key);
+    s_key = new Key(dtor);
+
+    *keyp = s_key;
+    return 0;
+}
+
+int freertos_gthread_key_delete(Key*) {
+    // no synchronization here:
+    //   It is up to the applicaiton to delete (or maintain a reference)
+    //   the thread specific data associated with the key.
+    delete s_key;
+    s_key = nullptr;
+    return 0;
+}
+
+void* freertos_gthread_getspecific(Key* key) {
+    std::lock_guard<std::mutex> lg { key->_mtx };
+
+    auto item = key->_specValue.find(__gthread_t::self().native_task_handle());
+    if (item == key->_specValue.end()) {
+        return nullptr;
     }
-    ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
+    return const_cast<void*>(item->second);
+}
+
+int freertos_gthread_setspecific(Key* key, const void* ptr) {
+    std::lock_guard<std::mutex> lg { key->_mtx };
+
+    auto& cont { key->_specValue };
+    auto task { __gthread_t::self().native_task_handle() };
+    if (ptr) {
+        cont[task] = ptr;
+    } else {
+        (void) cont.erase(task);
     }
-};
+    return 0;
+}
+
 } // namespace free_rtos_std

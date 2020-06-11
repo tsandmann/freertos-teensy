@@ -24,11 +24,15 @@
  */
 
 #include "arduino_freertos.h"
+#include "freertos_time.h"
 
 #include <thread>
+#include <future>
 #include <chrono>
 #include <time.h>
 
+
+using namespace std::chrono_literals;
 
 static void task1(void*) {
     while (true) {
@@ -41,18 +45,17 @@ static void task1(void*) {
 }
 
 static void task2(void*) {
-    std::thread t { []() {
+    std::thread t1 { []() {
         ::vTaskPrioritySet(nullptr, 3);
 
         struct timeval tv;
 
         while (true) {
-            ::Serial.println("TICK");
-            using namespace std::chrono_literals;
+            ::Serial.println(PSTR("TICK"));
             std::this_thread::sleep_for(500ms);
 
             ::gettimeofday(&tv, nullptr);
-            ::Serial.printf("TOCK\tnow: %lu s\n\r", tv.tv_sec);
+            ::Serial.printf(PSTR("TOCK\tnow: %lu s\n\r"), tv.tv_sec);
             std::this_thread::sleep_for(500ms);
         }
     } };
@@ -60,18 +63,70 @@ static void task2(void*) {
     ::vTaskSuspend(nullptr);
 }
 
+static void task3(void*) {
+    ::Serial.println("task3:");
+    ::Serial.flush();
+
+    std::this_thread::sleep_for(5s);
+
+    ::Serial.println(PSTR("task3: creating futures..."));
+    ::Serial.flush();
+
+    std::future<int32_t> result0 { std::async([]() -> int32_t { return 2; }) };
+    std::future<int32_t> result1 { std::async(std::launch::async, []() -> int32_t { return 3; }) };
+    std::future<int32_t> result2 { std::async(std::launch::deferred, []() -> int32_t { return 5; }) };
+
+    int32_t r { result0.get() + result1.get() + result2.get() };
+    ::Serial.printf(PSTR("r=%d\n\r"), r);
+    configASSERT(2 + 3 + 5 == r);
+
+
+    // future from a packaged_task
+    std::packaged_task<int()> task([] { return 7; }); // wrap the function
+    std::future<int> f1 = task.get_future(); // get a future
+    std::thread t2(std::move(task)); // launch on a thread
+
+    // future from an async()
+    std::future<int> f2 = std::async(std::launch::async, [] { return 8; });
+
+    // future from a promise
+    std::promise<int> p;
+    std::future<int> f3 = p.get_future();
+    std::thread([&p] { p.set_value_at_thread_exit(9); }).detach();
+
+    ::Serial.println(PSTR("Waiting..."));
+    ::Serial.flush();
+    f1.wait();
+    f2.wait();
+    f3.wait();
+    const auto r1 { f1.get() };
+    const auto r2 { f2.get() };
+    const auto r3 { f3.get() };
+    ::Serial.printf(PSTR("Done!\nResults are: %d %d %d\n\r"), r1, r2, r3);
+    ::Serial.flush();
+    configASSERT(7 + 8 + 9 == r1 + r2 + r3);
+    t2.join();
+
+    ::vTaskSuspend(nullptr);
+}
+
 void setup() {
     ::Serial.begin(115'200);
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
-    ::digitalWrite(arduino::LED_BUILTIN, arduino::HIGH);
+    ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
 
-    while (::millis() < 1'500) {
+    while (::millis() < 2'000) {
     }
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
-    ::xTaskCreate(task2, "task2", 128, nullptr, configMAX_PRIORITIES - 1, nullptr);
+    ::xTaskCreate(task2, "task2", 8192, nullptr, configMAX_PRIORITIES - 1, nullptr);
+    ::xTaskCreate(task3, "task3", 8192, nullptr, 3, nullptr);
 
-    ::Serial.println("setup(): starting scheduler...");
+    std::chrono::time_point<std::chrono::system_clock, std::chrono::system_clock::duration> offset {};
+    offset += 1h;
+    free_rtos_std::set_system_clock(offset);
+
+    ::Serial.println(PSTR("setup(): starting scheduler..."));
     ::Serial.flush();
 
     ::vTaskStartScheduler();

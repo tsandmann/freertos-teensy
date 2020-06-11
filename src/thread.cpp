@@ -34,12 +34,20 @@
 ///
 
 #include "arduino_freertos.h"
+#include "gthr_key_type.h"
 
 #include <thread>
-#include <system_error>
 #include <cerrno>
 #include <cstring>
 
+
+// trick to fool libgcc and make it detects we are using threads
+void __pthread_key_create() {}
+void pthread_cancel() {}
+
+namespace free_rtos_std {
+extern Key* s_key;
+} // namespace free_rtos_std
 
 namespace std {
 
@@ -52,13 +60,21 @@ static void __execute_native_thread_routine(void* __p) {
         __t->_M_run();
     }
 
+    if (free_rtos_std::s_key) {
+        free_rtos_std::s_key->CallDestructor(__gthread_t::self().native_task_handle());
+    }
+
     local.notify_joined(); // finished; release joined threads
 }
 
 thread::_State::~_State() = default;
 
 void thread::_M_start_thread(_State_ptr state, void (*)()) {
-    const int err { __gthread_create(&_M_id._M_thread, __execute_native_thread_routine, state.get()) };
+    const int err = __gthread_create(&_M_id._M_thread, __execute_native_thread_routine, state.get());
+
+    // if (err) {
+    //     __throw_system_error(err);
+    // }
     configASSERT(!err);
 
     state.release();
@@ -69,6 +85,7 @@ void thread::join() {
     if (_M_id._M_thread != invalid._M_thread) {
         __gthread_join(_M_id._M_thread, nullptr);
     } else {
+        // __throw_system_error(EINVAL);
         configASSERT(EINVAL == -1);
     }
 
@@ -81,6 +98,7 @@ void thread::detach() {
     if (_M_id._M_thread != invalid._M_thread) {
         __gthread_detach(_M_id._M_thread);
     } else {
+        // __throw_system_error(EINVAL);
         configASSERT(EINVAL == -1);
     }
 
@@ -99,12 +117,12 @@ unsigned int thread::hardware_concurrency() noexcept {
 }
 
 void this_thread::__sleep_for(chrono::seconds sec, chrono::nanoseconds nsec) {
-    long ms { static_cast<long>(nsec.count() / 1'000'000) };
+    long ms = nsec.count() / 1'000'000;
     if (sec.count() == 0 && ms == 0 && nsec.count() > 0) {
         ms = 1; // round up to 1 ms => if sleep time != 0, sleep at least 1ms
     }
 
-    ::vTaskDelay(pdMS_TO_TICKS(chrono::milliseconds(sec).count() + ms));
+    vTaskDelay(pdMS_TO_TICKS(chrono::milliseconds(sec).count() + ms));
 }
 
 } // namespace std
