@@ -34,6 +34,8 @@
 
 using namespace std::chrono_literals;
 
+static std::jthread* g_t1 {};
+
 static void task1(void*) {
     while (true) {
         ::digitalWrite(arduino::LED_BUILTIN, arduino::LOW);
@@ -45,12 +47,12 @@ static void task1(void*) {
 }
 
 static void task2(void*) {
-    std::jthread t1 { []() {
+    g_t1 = new std::jthread { [](std::stop_token stop) {
         ::vTaskPrioritySet(nullptr, 3);
 
         struct timeval tv;
 
-        while (true) {
+        while (!stop.stop_requested()) {
             ::Serial.println(PSTR("TICK"));
             std::this_thread::sleep_for(500ms);
 
@@ -58,7 +60,10 @@ static void task2(void*) {
             ::Serial.printf(PSTR("TOCK\tnow: %lu s\n\r"), tv.tv_sec);
             std::this_thread::sleep_for(500ms);
         }
+        ::Serial.println(PSTR("Thread stopped."));
+        ::Serial.flush();
     } };
+    configASSERT(g_t1);
 
     ::vTaskSuspend(nullptr);
 }
@@ -103,9 +108,21 @@ static void task3(void*) {
         const auto r2 { f2.get() };
         const auto r3 { f3.get() };
         ::Serial.printf(PSTR("Done!\nResults are: %d %d %d\n\r"), r1, r2, r3);
-        ::Serial.flush();
         configASSERT(7 + 8 + 9 == r1 + r2 + r3);
     }
+
+    if (g_t1->request_stop()) {
+        ::Serial.println(PSTR("t1 stop_request successful."));
+    } else {
+        ::Serial.println(PSTR("t1 stop_request failed."));
+    }
+    ::Serial.flush();
+
+    delete g_t1;
+    g_t1 = nullptr;
+
+    ::Serial.println(PSTR("t1 deleted."));
+    ::Serial.flush();
 
     ::vTaskSuspend(nullptr);
 }
@@ -126,7 +143,7 @@ void setup() {
     offset += 1h;
     free_rtos_std::set_system_clock(offset);
 
-    ::Serial.println(PSTR("setup(): starting scheduler..."));
+    ::Serial.println(PSTR("\n\rsetup(): starting scheduler..."));
     ::Serial.flush();
 
     ::vTaskStartScheduler();
