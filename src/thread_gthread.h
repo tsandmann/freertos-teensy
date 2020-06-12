@@ -223,10 +223,11 @@ public:
         return _taskHandle == r._taskHandle;
     }
 
+#if __cpp_lib_three_way_comparison
     auto operator<=>(const gthr_freertos& r) const {
         return _taskHandle <=> r._taskHandle;
     }
-
+#else
     bool operator!=(const gthr_freertos& r) const {
         return !operator==(r);
     }
@@ -234,6 +235,7 @@ public:
     bool operator<(const gthr_freertos& r) const {
         return _taskHandle < r._taskHandle;
     }
+#endif
 
     void* arg() const {
         return _arg;
