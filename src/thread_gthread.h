@@ -45,7 +45,8 @@
 
 namespace std {
 class thread;
-}
+class stop_token;
+} // namespace std
 
 namespace free_rtos_std {
 
@@ -80,6 +81,7 @@ class gthr_freertos {
     //    For this reason a single class is a container for the two handles.
 
     friend std::thread;
+    friend std::stop_token;
 
     enum { eEvStoragePos = 0, eStartedEv = 1 << 22, eJoinEv = 1 << 23 };
 
@@ -221,6 +223,11 @@ public:
         return _taskHandle == r._taskHandle;
     }
 
+#if __cpp_lib_three_way_comparison
+    auto operator<=>(const gthr_freertos& r) const {
+        return _taskHandle <=> r._taskHandle;
+    }
+#else
     bool operator!=(const gthr_freertos& r) const {
         return !operator==(r);
     }
@@ -228,6 +235,7 @@ public:
     bool operator<(const gthr_freertos& r) const {
         return _taskHandle < r._taskHandle;
     }
+#endif
 
     void* arg() const {
         return _arg;

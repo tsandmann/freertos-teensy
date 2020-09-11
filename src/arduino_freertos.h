@@ -116,6 +116,10 @@ using ::Serial3;
 using ::Serial4;
 using ::Serial5;
 using ::Serial6;
+using ::Serial7;
+#ifdef ARDUINO_TEENSY41
+using ::Serial8;
+#endif
 #ifdef _SPI_H_INCLUDED
 using ::SPI;
 using ::SPI1;

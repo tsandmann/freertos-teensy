@@ -206,7 +206,7 @@ extern "C" {
 void vApplicationTickHook();
 void vApplicationTickHook() {
     systick_cycle_count = ARM_DWT_CYCCNT;
-    systick_millis_count++;
+    systick_millis_count = systick_millis_count + 1;
 }
 #endif // configUSE_TICK_HOOK
 

@@ -48,7 +48,7 @@ typedef free_rtos_std::gthr_freertos __gthread_t;
 
 extern "C" {
 
-#define _GLIBCXX_HAS_GTHREADS
+#define _GLIBCXX_HAS_GTHREADS 1
 #define __GTHREADS 1
 
 // returns: 1 - thread system is active; 0 - thread system is not active
