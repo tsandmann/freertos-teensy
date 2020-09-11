@@ -1,0 +1,25 @@
+{
+  "name": "freertos-teensy4",
+  "keywords": "FreeRTOS, Teensy",
+  "description": "FreeRTOS port for Teensy 4",
+  "license": "MIT",
+  "homepage": "https://www.freertos.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tsandmann/freertos-teensy4"
+  },
+  "version": "10.2.1",
+  "authors":
+  [
+    {
+      "name": "Richard Barry",
+      "email": "info@freertos.org"
+    },
+    {
+      "name": "Timo Sandmann",
+      "maintainer": true
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "teensy"
+}
