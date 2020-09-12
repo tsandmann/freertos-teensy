@@ -62,6 +62,11 @@ extern uint32_t systick_safe_read;
 extern uint32_t set_arm_clock(uint32_t frequency);
 
 
+uint8_t get_debug_led_pin() __attribute__((weak, section(".flashmem")));
+uint8_t get_debug_led_pin() {
+    return arduino::LED_BUILTIN;
+}
+
 void serial_puts(const char* str) {
     ::Serial.println(str);
     ::Serial.flush();
@@ -122,14 +127,15 @@ static __attribute__((section(".flashmem"))) void delay_ms(const uint32_t ms) {
 
 void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
-    ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
+    const uint8_t debug_led_pin { get_debug_led_pin() };
+    ::pinMode(debug_led_pin, arduino::OUTPUT);
     ::set_arm_clock(10'000'000UL);
 
     while (true) {
         for (uint8_t i {}; i < n; ++i) {
-            ::digitalWriteFast(arduino::LED_BUILTIN, true);
+            ::digitalWriteFast(debug_led_pin, true);
             delay_ms(300UL);
-            ::digitalWriteFast(arduino::LED_BUILTIN, false);
+            ::digitalWriteFast(debug_led_pin, false);
             delay_ms(300UL);
         }
         delay_ms(2'000UL);
