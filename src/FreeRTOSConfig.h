@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * FreeRTOS Kernel V10.2.0
  * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
@@ -40,7 +41,6 @@
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
 
-// clang-format off
 #define configUSE_PREEMPTION                        1
 #define configUSE_TICKLESS_IDLE                     0
 #define configCPU_CLOCK_HZ                          (F_CPU)
