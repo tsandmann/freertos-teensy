@@ -40,7 +40,7 @@ void setup_event_responder() {
     ::xTaskCreate(
         [](void*) {
             while (true) {
-                ::xTaskNotifyWait(0, 0, nullptr, portMAX_DELAY);
+                ::xTaskNotifyWaitIndexed(1, 0, 0, nullptr, portMAX_DELAY);
                 ::EventResponder::runFromInterrupt();
             }
         },

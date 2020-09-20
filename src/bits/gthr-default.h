@@ -215,7 +215,7 @@ static inline int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mut
     auto ms { (*abs_timeout - now).milliseconds() };
 
     __gthread_mutex_unlock(mutex);
-    auto fTimeout { 0 == ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms)) };
+    auto fTimeout { 0 == ulTaskNotifyTakeIndexed(1, pdTRUE, pdMS_TO_TICKS(ms)) };
     __gthread_mutex_lock(mutex);
 
     int result { 0 };
