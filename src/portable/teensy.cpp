@@ -272,7 +272,7 @@ void setup_systick_with_timer_events() {}
 
 void event_responder_set_pend_sv() {
     if (freertos::g_event_responder_task) {
-        ::xTaskNotify(freertos::g_event_responder_task, 0, eNoAction);
+        ::xTaskNotifyIndexed(freertos::g_event_responder_task, 1, 0, eNoAction);
     }
 }
 
