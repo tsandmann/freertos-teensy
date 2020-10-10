@@ -36,7 +36,7 @@ extern "C" {
  * @brief Write every character from the null-terminated C-string str and one additional newline character '\n' to Serial
  * @param[in] str: Character C-string to be written
  */
-void serial_puts(const char* str) __attribute__((section(".flashmem")));
+void serial_puts(const char* str);
 
 /**
  * @brief Print assert message and blink one short pulse every two seconds
@@ -45,34 +45,41 @@ void serial_puts(const char* str) __attribute__((section(".flashmem")));
  * @param[in] func: Function name as C-string
  * @param[in] expr: Expression that failed as C-string
  */
-void assert_blink(const char* file, int line, const char* func, const char* expr) __attribute__((noreturn, section(".flashmem")));
+void assert_blink(const char* file, int line, const char* func, const char* expr) __attribute__((noreturn));
 } // extern C
 
 namespace freertos {
 /**
+ * @brief Delay between led error flashes
+ * @param[in] ms: Milliseconds to delay
+ * @note Doesn't use a timer to work with interrupts disabled
+ */
+void delay_ms(const uint32_t ms);
+
+/**
  * @brief Indicate an error with the onboard LED
  * @param[in] n: Number of short LED pulses to encode the error
  */
-void error_blink(const uint8_t n) __attribute__((noreturn, section(".flashmem")));
+void error_blink(const uint8_t n) __attribute__((noreturn));
 
-void mcu_shutdown() __attribute__((section(".flashmem")));
+void mcu_shutdown();
 
 /**
  * @brief Get amount of used and free RAM1
  * @return Tuple of: free RAM in byte, used heap in byte, system free in byte, ram size in byte
  */
-std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() __attribute__((section(".flashmem")));
+std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage();
 
 /**
  * @brief Get amount of used and free RAM2
  * @return Tuple of: free RAM in byte, used heap in byte, system free in byte, ram size in byte
  */
-std::tuple<size_t, size_t> ram2_usage() __attribute__((section(".flashmem")));
+std::tuple<size_t, size_t> ram2_usage();
 
 /**
  * @brief Print amount of used and free RAM to Serial
  */
-void print_ram_usage() __attribute__((section(".flashmem")));
+void print_ram_usage();
 
 /**
  * @brief Get the current time in microseconds

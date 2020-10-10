@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * FreeRTOS Kernel V10.4.1
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
@@ -29,7 +30,14 @@
 #ifndef PORTMACRO_H
 #define PORTMACRO_H
 
+#if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
 #include "imxrt.h"
+#elif defined __MK64FX512__ || defined __MK66FX1M0__
+#include "kinetis.h"
+#else
+#error "Unsupported board"
+#endif
+
 #include "mpu_wrappers.h"
 
 #ifdef __cplusplus

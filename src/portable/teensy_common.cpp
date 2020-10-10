@@ -17,57 +17,47 @@
  */
 
 /**
- * @file    teensy.cpp
+ * @file    teensy_common.cpp
  * @brief   FreeRTOS support implementations for Teensy boards with newlib 3
  * @author  Timo Sandmann
- * @date    10.05.2020
+ * @date    10.10.2020
  */
 
+#define _DEFAULT_SOURCE
 #include <cstring>
 #include <unistd.h>
 #include <malloc.h>
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/lock.h>
+#include <avr/pgmspace.h>
 
 #include "teensy.h"
 #include "event_responder_support.h"
 
 #include "freertos_time.h"
 #include "semphr.h"
-#include "util/atomic.h"
-#define __ASM __asm
-#define __STATIC_INLINE static inline
-#define __CORTEX_M 7
-#include "core_cmInstr.h"
 
 
 extern "C" {
 asm(".global _printf_float"); /**< printf supporting floating point values */
 
-extern unsigned long _heap_start;
 extern unsigned long _heap_end;
 extern unsigned long _estack;
-extern unsigned long _sbss;
 extern unsigned long _ebss;
-extern unsigned long _sdata;
-extern unsigned long _edata;
-extern unsigned long _itcm_block_count;
 static uint8_t* current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
-extern volatile uint32_t scale_cpu_cycles_to_microseconds;
-extern uint32_t systick_safe_read;
 extern uint32_t set_arm_clock(uint32_t frequency);
 
 
-uint8_t get_debug_led_pin() __attribute__((weak, section(".flashmem")));
+uint8_t get_debug_led_pin() __attribute__((weak)) FLASHMEM;
 uint8_t get_debug_led_pin() {
     return arduino::LED_BUILTIN;
 }
 
-void serial_puts(const char* str) {
+FLASHMEM void serial_puts(const char* str) {
     ::Serial.println(str);
     ::Serial.flush();
 }
@@ -79,7 +69,7 @@ void serial_puts(const char* str) {
  * @param[in] func: Function name as C-string
  * @param[in] expr: Expression that failed as C-string
  */
-void assert_blink(const char* file, int line, const char* func, const char* expr) {
+FLASHMEM void assert_blink(const char* file, int line, const char* func, const char* expr) {
     ::Serial.println();
     ::Serial.print(PSTR("ASSERT in ["));
     ::Serial.print(file);
@@ -96,36 +86,14 @@ void assert_blink(const char* file, int line, const char* func, const char* expr
     freertos::error_blink(1);
 }
 
-void mcu_shutdown() {
+FLASHMEM void mcu_shutdown() {
     freertos::error_blink(0);
 }
 } // extern C
 
 
 namespace freertos {
-/**
- * @brief Delay between led error flashes
- * @param[in] ms: Milliseconds to delay
- * @note Doesn't use a timer to work with interrupts disabled
- */
-static __attribute__((section(".flashmem"))) void delay_ms(const uint32_t ms) {
-    const uint32_t n { ms / 10 };
-    for (uint32_t i {}; i < n; ++i) {
-        // poll_usb();
-
-        for (uint32_t i {}; i < 10UL * (10'000'000UL / 2'100UL); ++i) { // FIXME: check time, should be ~10 ms
-            __asm volatile("nop");
-        }
-    }
-
-    const uint32_t iterations { (ms % 10) * (10'000'000UL / 2'100UL) }; // FIXME: check time // remainder
-    for (uint32_t i {}; i < iterations; ++i) {
-        __asm volatile("nop");
-    }
-    __isb();
-}
-
-void error_blink(const uint8_t n) {
+FLASHMEM void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
     ::pinMode(debug_led_pin, arduino::OUTPUT);
@@ -142,80 +110,36 @@ void error_blink(const uint8_t n) {
     }
 }
 
-std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
-    const size_t blk_cnt { reinterpret_cast<uintptr_t>(&_itcm_block_count) };
-    const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - reinterpret_cast<uint8_t*>(0x20'000'000)) + blk_cnt * 32'768U };
-    const size_t bss { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_ebss) - reinterpret_cast<uint8_t*>(&_sbss)) };
-    const size_t data { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_edata) - reinterpret_cast<uint8_t*>(&_sdata)) };
-    const size_t system_free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - current_heap_end) - 8'192U };
-    const auto info { mallinfo() };
-    const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, data, bss, info.uordblks, system_free, ram_size };
-    return ret;
-}
-
-std::tuple<size_t, size_t> ram2_usage() {
-    const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_heap_end) - reinterpret_cast<uint8_t*>(0x20'200'000)) };
-    const size_t free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_heap_end) - reinterpret_cast<uint8_t*>(&_heap_start)) };
-
-    const std::tuple<size_t, size_t> ret { free, ram_size };
-    return ret;
-}
-
-void print_ram_usage() {
+FLASHMEM void print_ram_usage() {
     const auto info1 { ram1_usage() };
     const auto info2 { ram2_usage() };
 
     ::Serial.print(PSTR("RAM1 size: "));
-    ::Serial.print(std::get<5>(info1) / 1024UL, 10);
+    ::Serial.print(std::get<5>(info1) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, free RAM1: "));
-    ::Serial.print(std::get<0>(info1) / 1024UL, 10);
+    ::Serial.print(std::get<0>(info1) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, data used: "));
-    ::Serial.print((std::get<1>(info1)) / 1024UL, 10);
+    ::Serial.print((std::get<1>(info1)) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, bss used: "));
-    ::Serial.print(std::get<2>(info1) / 1024UL, 10);
+    ::Serial.print(std::get<2>(info1) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, used heap: "));
-    ::Serial.print(std::get<3>(info1) / 1024UL, 10);
+    ::Serial.print(std::get<3>(info1) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, system free: "));
-    ::Serial.print(std::get<4>(info1) / 1024UL, 10);
+    ::Serial.print(std::get<4>(info1) / 1'024UL, 10);
     ::Serial.println(PSTR(" KB"));
 
     ::Serial.print(PSTR("RAM2 size: "));
-    ::Serial.print(std::get<1>(info2) / 1024UL, 10);
+    ::Serial.print(std::get<1>(info2) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, free RAM2: "));
-    ::Serial.print(std::get<0>(info2) / 1024UL, 10);
+    ::Serial.print(std::get<0>(info2) / 1'024UL, 10);
     ::Serial.print(PSTR(" KB, used RAM2: "));
-    ::Serial.print((std::get<1>(info2) - std::get<0>(info2)) / 1024UL, 10);
+    ::Serial.print((std::get<1>(info2) - std::get<0>(info2)) / 1'024UL, 10);
 
     ::Serial.println(PSTR(" KB"));
-}
-
-uint64_t get_us() {
-    uint32_t smc, scc;
-    do {
-        __LDREXW(&systick_safe_read);
-        smc = systick_millis_count;
-        scc = systick_cycle_count;
-    } while (__STREXW(1, &systick_safe_read));
-    const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    __dmb();
-    const uint32_t ccdelta { cyccnt - scc };
-    uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
-    if (frac > 1'000) {
-        frac = 1'000;
-    }
-    return static_cast<uint64_t>(smc) * 1'000ULL + frac;
 }
 } // namespace freertos
 
 extern "C" {
-#if configUSE_TICK_HOOK > 0
-void vApplicationTickHook();
-void vApplicationTickHook() {
-    systick_cycle_count = ARM_DWT_CYCCNT;
-    systick_millis_count = systick_millis_count + 1;
-}
-#endif // configUSE_TICK_HOOK
-
 #if configUSE_IDLE_HOOK == 1
 void vApplicationIdleHook();
 void vApplicationIdleHook() {
@@ -223,21 +147,20 @@ void vApplicationIdleHook() {
 }
 #endif // configUSE_IDLE_HOOK
 
-void startup_late_hook() __attribute__((section(".flashmem")));
-
+void startup_late_hook() FLASHMEM;
 void startup_late_hook() {
-    printf_debug(PSTR("startup_late_hook()\n"));
+    ::serial_puts(PSTR("startup_late_hook()\n"));
     ::vTaskSuspendAll();
-    printf_debug(PSTR("startup_late_hook() done.\n"));
+    ::serial_puts(PSTR("startup_late_hook() done.\n"));
 }
 
 void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
-void vPortSetupTimerInterrupt() __attribute__((section(".flashmem")));
+void vPortSetupTimerInterrupt() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
-    printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
+    ::serial_puts(PSTR("vPortSetupTimerInterrupt()\n"));
 
     /* stop and clear the SysTick */
     SYST_CSR = 0;
@@ -265,7 +188,7 @@ void vPortSetupTimerInterrupt() {
 
     ::xTaskResumeAll();
 
-    printf_debug(PSTR("vPortSetupTimerInterrupt() done.\n"));
+    ::serial_puts(PSTR("vPortSetupTimerInterrupt() done.\n"));
 }
 
 void setup_systick_with_timer_events() {}
@@ -277,12 +200,12 @@ void event_responder_set_pend_sv() {
 }
 
 #if configUSE_MALLOC_FAILED_HOOK == 1
-static __attribute__((section(".flashmem"))) void vApplicationMallocFailedHook() {
+static FLASHMEM void vApplicationMallocFailedHook() {
     freertos::error_blink(2);
 }
 #endif // configUSE_MALLOC_FAILED_HOOK
 
-void vApplicationStackOverflowHook(TaskHandle_t, char*) __attribute__((section(".flashmem")));
+void vApplicationStackOverflowHook(TaskHandle_t, char*) FLASHMEM;
 
 void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     static char taskname[configMAX_TASK_NAME_LEN + 1];
@@ -294,7 +217,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     freertos::error_blink(3);
 }
 
-void* _sbrk(ptrdiff_t incr) {
+void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
     // printf_debug(PSTR("_sbrk(%u)\n"), incr);
@@ -350,7 +273,7 @@ int _getpid() {
     return reinterpret_cast<int>(::xTaskGetCurrentTaskHandle());
 }
 
-int _gettimeofday(timeval* tv, void*) {
+FLASHMEM int _gettimeofday(timeval* tv, void*) {
     const auto now_us { freertos::get_us() };
     const auto off { free_rtos_std::wall_clock::get_offset() };
     const timeval now { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
@@ -359,7 +282,7 @@ int _gettimeofday(timeval* tv, void*) {
     return 0;
 }
 
-size_t xPortGetFreeHeapSize() PRIVILEGED_FUNCTION {
+FLASHMEM size_t xPortGetFreeHeapSize() {
     const struct mallinfo mi = ::mallinfo();
     return mi.fordblks;
 }
@@ -371,7 +294,7 @@ uint64_t freertos_get_us() {
 #endif // configGENERATE_RUN_TIME_STATS
 
 #if configSUPPORT_STATIC_ALLOCATION == 1
-void vApplicationGetIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer, StackType_t** ppxIdleTaskStackBuffer, uint32_t* pulIdleTaskStackSize) {
+FLASHMEM void vApplicationGetIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer, StackType_t** ppxIdleTaskStackBuffer, uint32_t* pulIdleTaskStackSize) {
     static StaticTask_t xIdleTaskTCB;
     static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE] __attribute__((used, aligned(8)));
 
@@ -381,7 +304,7 @@ void vApplicationGetIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer, StackTyp
 }
 
 #if configUSE_TIMERS == 1
-void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackType_t** ppxTimerTaskStackBuffer, uint32_t* pulTimerTaskStackSize) {
+FLASHMEM void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackType_t** ppxTimerTaskStackBuffer, uint32_t* pulTimerTaskStackSize) {
     static StaticTask_t xTimerTaskTCB;
     static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH] __attribute__((used, aligned(8)));
 
@@ -402,7 +325,7 @@ StaticSemaphore_t __lock___dd_hash_mutex;
 StaticSemaphore_t __lock___arc4random_mutex;
 static bool __locks_initialized {};
 
-__attribute__((section(".flashmem"))) void init_retarget_locks() {
+FLASHMEM void init_retarget_locks() {
     ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sinit_recursive_mutex);
     ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sfp_recursive_mutex);
     ::xSemaphoreCreateRecursiveMutexStatic(&__lock___atexit_recursive_mutex);
@@ -424,7 +347,7 @@ SemaphoreHandle_t __lock___tz_mutex;
 SemaphoreHandle_t __lock___dd_hash_mutex;
 SemaphoreHandle_t __lock___arc4random_mutex;
 
-__attribute__((section(".flashmem"))) void init_retarget_locks() {
+FLASHMEM void init_retarget_locks() {
     __lock___sinit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
     __lock___sfp_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
     __lock___atexit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
@@ -496,116 +419,4 @@ void __retarget_lock_release_recursive(_LOCK_T lock) {
         ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
     }
 }
-
-void HardFault_HandlerC(unsigned int* hardfault_args) __attribute__((section(".flashmem"), used));
-void HardFault_HandlerC(unsigned int* hardfault_args) {
-    unsigned int sp;
-    __asm__ volatile("mov %0, sp" : "=r"(sp)::);
-
-    unsigned int addr;
-    __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
-
-    ::vTaskSuspendAll();
-
-    ::Serial.print(PSTR("Fault IRQ:    0x"));
-    ::Serial.println(addr & 0x1ff, 16);
-    ::Serial.print(PSTR(" sp:          0x"));
-    ::Serial.println(sp, 16);
-    ::Serial.print(PSTR(" stacked_r0:  0x"));
-    ::Serial.println(hardfault_args[0], 16);
-    ::Serial.print(PSTR(" stacked_r1:  0x"));
-    ::Serial.println(hardfault_args[1], 16);
-    ::Serial.print(PSTR(" stacked_r2:  0x"));
-    ::Serial.println(hardfault_args[2], 16);
-    ::Serial.print(PSTR(" stacked_r3:  0x"));
-    ::Serial.println(hardfault_args[3], 16);
-    ::Serial.print(PSTR(" stacked_r12: 0x"));
-    ::Serial.println(hardfault_args[4], 16);
-    ::Serial.print(PSTR(" stacked_lr:  0x"));
-    ::Serial.println(hardfault_args[5], 16);
-    ::Serial.print(PSTR(" stacked_pc:  0x"));
-    ::Serial.println(hardfault_args[6], 16);
-    ::Serial.print(PSTR(" stacked_psr: 0x"));
-    ::Serial.println(hardfault_args[7], 16);
-
-    const auto _CFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED28);
-    ::Serial.print(PSTR(" _CFSR:       0x"));
-    ::Serial.println(_CFSR, 16);
-
-    if (_CFSR > 0) {
-        /* Memory Management Faults */
-        if ((_CFSR & 1) == 1) {
-            ::Serial.println(PSTR("  (IACCVIOL)    Instruction Access Violation"));
-        } else if (((_CFSR & (0x02)) >> 1) == 1) {
-            ::Serial.println(PSTR("  (DACCVIOL)    Data Access Violation"));
-        } else if (((_CFSR & (0x08)) >> 3) == 1) {
-            ::Serial.println(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking"));
-        } else if (((_CFSR & (0x10)) >> 4) == 1) {
-            ::Serial.println(PSTR("  (MSTKERR)     MemMange Fault on stacking"));
-        } else if (((_CFSR & (0x20)) >> 5) == 1) {
-            ::Serial.println(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State"));
-        }
-        if (((_CFSR & (0x80)) >> 7) == 1) {
-            ::Serial.println(PSTR("  (MMARVALID)   MemMange Fault Address Valid"));
-        }
-        /* Bus Fault Status Register */
-        if (((_CFSR & 0x100) >> 8) == 1) {
-            ::Serial.println(PSTR("  (IBUSERR)     Instruction Bus Error"));
-        } else if (((_CFSR & (0x200)) >> 9) == 1) {
-            ::Serial.println(PSTR("  (PRECISERR)   Data bus error(address in BFAR)"));
-        } else if (((_CFSR & (0x400)) >> 10) == 1) {
-            ::Serial.println(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction"));
-        } else if (((_CFSR & (0x800)) >> 11) == 1) {
-            ::Serial.println(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception"));
-        } else if (((_CFSR & (0x1000)) >> 12) == 1) {
-            ::Serial.println(PSTR("  (STKERR)      Bus Fault on stacking for exception entry"));
-        } else if (((_CFSR & (0x2000)) >> 13) == 1) {
-            ::Serial.println(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation"));
-        }
-        if (((_CFSR & (0x8000)) >> 15) == 1) {
-            ::Serial.println(PSTR("  (BFARVALID)   Bus Fault Address Valid"));
-        }
-        /* Usuage Fault Status Register */
-        if (((_CFSR & 0x10000) >> 16) == 1) {
-            ::Serial.println(PSTR("  (UNDEFINSTR)  Undefined instruction"));
-        } else if (((_CFSR & (0x20000)) >> 17) == 1) {
-            ::Serial.println(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)"));
-        } else if (((_CFSR & (0x40000)) >> 18) == 1) {
-            ::Serial.println(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN"));
-        } else if (((_CFSR & (0x80000)) >> 19) == 1) {
-            ::Serial.println(PSTR("  (NOCP)        No Coprocessor"));
-        } else if (((_CFSR & (0x1000000)) >> 24) == 1) {
-            ::Serial.println(PSTR("  (UNALIGNED)   Unaligned access UsageFault"));
-        } else if (((_CFSR & (0x2000000)) >> 25) == 1) {
-            ::Serial.println(PSTR("  (DIVBYZERO)   Divide by zero"));
-        }
-    }
-
-    const auto _HFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED2C);
-    ::Serial.print(PSTR(" _HFSR:       0x"));
-    ::Serial.println(_HFSR, 16);
-    if (_HFSR > 0) {
-        /* Memory Management Faults */
-        if (((_HFSR & (0x02)) >> 1) == 1) {
-            ::Serial.println(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read"));
-        } else if (((_HFSR & (0x40000000)) >> 30) == 1) {
-            ::Serial.println(PSTR("  (FORCED)      Forced Hard Fault"));
-        } else if (((_HFSR & (0x80000000)) >> 31) == 31) {
-            ::Serial.println(PSTR("  (DEBUGEVT)    Reserved for Debug"));
-        }
-    }
-
-    ::Serial.print(PSTR(" _DFSR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED30), 16);
-    ::Serial.print(PSTR(" _AFSR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED3C), 16);
-    ::Serial.print(PSTR(" _BFAR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED38), 16);
-    ::Serial.print(PSTR(" _MMAR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED34), 16);
-    ::Serial.flush();
-
-    freertos::error_blink(4);
-}
-
 } // extern C

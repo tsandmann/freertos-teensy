@@ -116,7 +116,9 @@ using ::Serial3;
 using ::Serial4;
 using ::Serial5;
 using ::Serial6;
+#if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
 using ::Serial7;
+#endif
 #ifdef ARDUINO_TEENSY41
 using ::Serial8;
 #endif
@@ -165,13 +167,21 @@ static constexpr uint8_t FALLING { 2 };
 static constexpr uint8_t RISING { 3 };
 static constexpr uint8_t CHANGE { 4 };
 
-#if defined(__IMXRT1062__) && defined(ARDUINO_TEENSY40)
+#if defined __IMXRT1062__ && defined ARDUINO_TEENSY40
 static constexpr bool digitalPinHasPWM(uint8_t p) {
     return ((p) <= 15 || (p) == 18 || (p) == 19 || ((p) >= 22 && (p) <= 25) || ((p) >= 28 && (p) <= 31) || (p) == 33);
 }
-#elif defined(__IMXRT1062__) && defined(ARDUINO_TEENSY41)
+#elif defined __IMXRT1062__ && defined ARDUINO_TEENSY41
 static constexpr bool digitalPinHasPWM(uint8_t p) {
     return ((p) <= 15 || (p) == 18 || (p) == 19 || ((p) >= 22 && (p) <= 25) || ((p) >= 28 && (p) <= 31) || (p) == 33);
+}
+#elif defined __MK64FX512__
+static constexpr bool digitalPinHasPWM(uint8_t p) {
+    return ((p) >= 2 && (p) <= 10) || (p) == 14 || ((p) >= 20 && (p) <= 23) || (p) == 29 || (p) == 30 || ((p) >= 35 && (p) <= 38);
+}
+#elif defined __MK66FX1M0__
+static constexpr bool digitalPinHasPWM(uint8_t p) {
+    return ((p) >= 2 && (p) <= 10) || (p) == 14 || (p) == 16 || (p) == 17 || ((p) >= 20 && (p) <= 23) || (p) == 29 || (p) == 30 || ((p) >= 35 && (p) <= 38);
 }
 #endif
 
