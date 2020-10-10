@@ -39,6 +39,8 @@
 #include "semphr.h"
 
 
+static constexpr bool DEBUG { false };
+
 extern "C" {
 asm(".global _printf_float"); /**< printf supporting floating point values */
 
@@ -149,46 +151,13 @@ void vApplicationIdleHook() {
 
 void startup_late_hook() FLASHMEM;
 void startup_late_hook() {
-    ::serial_puts(PSTR("startup_late_hook()\n"));
-    ::vTaskSuspendAll();
-    ::serial_puts(PSTR("startup_late_hook() done.\n"));
-}
-
-void xPortPendSVHandler();
-void xPortSysTickHandler();
-void vPortSVCHandler();
-void vPortSetupTimerInterrupt() FLASHMEM;
-
-void vPortSetupTimerInterrupt() {
-    ::serial_puts(PSTR("vPortSetupTimerInterrupt()\n"));
-
-    /* stop and clear the SysTick */
-    SYST_CSR = 0;
-    SYST_CVR = 0;
-
-    /* override arduino vector table entries */
-    _VectorsRam[11] = vPortSVCHandler;
-    _VectorsRam[14] = xPortPendSVHandler;
-    _VectorsRam[15] = xPortSysTickHandler;
-
-    /* configure SysTick to interrupt at the requested rate */
-    SYST_RVR = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
-    SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
-
-/* calculate the constants required to configure the tick interrupt */
-#if configUSE_TICKLESS_IDLE == 1
-    { // FIXME: doesn't work
-        ulTimerCountsForOneTick = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ);
-        xMaximumPossibleSuppressedTicks = portMAX_24_BIT_NUMBER / ulTimerCountsForOneTick;
-        ulStoppedTimerCompensation = portMISSED_COUNTS_FACTOR / (configCPU_CLOCK_HZ / configSYSTICK_CLOCK_HZ);
+    if (DEBUG) {
+        printf_debug(PSTR("startup_late_hook()\n"));
     }
-#endif // configUSE_TICKLESS_IDLE
-
-    freertos::setup_event_responder();
-
-    ::xTaskResumeAll();
-
-    ::serial_puts(PSTR("vPortSetupTimerInterrupt() done.\n"));
+    ::vTaskSuspendAll();
+    if (DEBUG) {
+        printf_debug(PSTR("startup_late_hook() done.\n"));
+    }
 }
 
 void setup_systick_with_timer_events() {}
@@ -220,10 +189,12 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
-    // printf_debug(PSTR("_sbrk(%u)\n"), incr);
-    // printf_debug(PSTR("current_heap_end=0x%x\n"), reinterpret_cast<uintptr_t>(current_heap_end));
-    // printf_debug(PSTR("_ebss=0x%x\n"), reinterpret_cast<uintptr_t>(&_ebss));
-    // printf_debug(PSTR("_estack=0x%x\n"), reinterpret_cast<uintptr_t>(&_estack));
+    if (DEBUG) {
+        printf_debug(PSTR("_sbrk(%u)\n"), incr);
+        printf_debug(PSTR("current_heap_end=0x%x\n"), reinterpret_cast<uintptr_t>(current_heap_end));
+        printf_debug(PSTR("_ebss=0x%x\n"), reinterpret_cast<uintptr_t>(&_ebss));
+        printf_debug(PSTR("_estack=0x%x\n"), reinterpret_cast<uintptr_t>(&_estack));
+    }
 
     void* previous_heap_end { current_heap_end };
 

@@ -28,6 +28,7 @@
 #include <malloc.h>
 
 #include "teensy.h"
+#include "event_responder_support.h"
 #include "util/atomic.h"
 
 #define __ASM __asm
@@ -35,6 +36,8 @@
 #define __CORTEX_M 4
 #include "core_cmInstr.h"
 
+
+static constexpr bool DEBUG { false };
 
 extern "C" {
 extern unsigned long _heap_start;
@@ -137,6 +140,47 @@ uint64_t get_us() {
 } // namespace freertos
 
 extern "C" {
+void xPortPendSVHandler();
+void xPortSysTickHandler();
+void vPortSVCHandler();
+void vPortSetupTimerInterrupt() FLASHMEM;
+
+void vPortSetupTimerInterrupt() {
+    if (DEBUG) {
+        ::serial_puts(PSTR("vPortSetupTimerInterrupt()\n"));
+    }
+
+    /* stop and clear the SysTick */
+    SYST_CSR = 0;
+    SYST_CVR = 0;
+
+    /* override arduino vector table entries */
+    _VectorsRam[11] = vPortSVCHandler;
+    _VectorsRam[14] = xPortPendSVHandler;
+    _VectorsRam[15] = xPortSysTickHandler;
+
+    /* configure SysTick to interrupt at the requested rate */
+    SYST_RVR = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
+    SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
+
+/* calculate the constants required to configure the tick interrupt */
+#if configUSE_TICKLESS_IDLE == 1
+    { // FIXME: doesn't work
+        ulTimerCountsForOneTick = (configCPU_CLOCK_HZ / configTICK_RATE_HZ);
+        xMaximumPossibleSuppressedTicks = portMAX_24_BIT_NUMBER / ulTimerCountsForOneTick;
+        ulStoppedTimerCompensation = portMISSED_COUNTS_FACTOR;
+    }
+#endif // configUSE_TICKLESS_IDLE
+
+    freertos::setup_event_responder();
+
+    ::xTaskResumeAll();
+
+    if (DEBUG) {
+        ::serial_puts(PSTR("vPortSetupTimerInterrupt() done.\n"));
+    }
+}
+
 #if configUSE_TICK_HOOK > 0
 void vApplicationTickHook();
 void vApplicationTickHook() {
