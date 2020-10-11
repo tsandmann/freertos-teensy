@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include <sys/lock.h>
 #include <avr/pgmspace.h>
+#include <unwind.h>
 
 #include "teensy.h"
 #include "event_responder_support.h"
@@ -64,6 +65,16 @@ FLASHMEM void serial_puts(const char* str) {
     ::Serial.flush();
 }
 
+FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
+    int* p_depth { static_cast<int*>(depth) };
+    ::Serial.print(PSTR("\t#"));
+    ::Serial.print(*p_depth);
+    ::Serial.print(PSTR(": pc at 0x"));
+    ::Serial.println(_Unwind_GetIP(ctx), 16);
+    (*p_depth)++;
+    return _URC_NO_REASON;
+}
+
 /**
  * @brief Print assert message and blink one short pulse every two seconds
  * @param[in] file: Filename as C-string
@@ -83,6 +94,10 @@ FLASHMEM void assert_blink(const char* file, int line, const char* func, const c
     ::Serial.print(PSTR("(): "));
     ::Serial.println(expr);
     ::Serial.println();
+
+    ::Serial.println(PSTR("Stack trace:"));
+    int depth { 0 };
+    _Unwind_Backtrace(&trace_fcn, &depth);
     ::Serial.flush();
 
     freertos::error_blink(1);
