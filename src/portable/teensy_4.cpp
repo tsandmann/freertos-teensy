@@ -26,10 +26,11 @@
 #if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
 #include <cstring>
 #include <malloc.h>
-#include <avr/pgmspace.h>
 
 #include "teensy.h"
 #include "event_responder_support.h"
+#include "avr/pgmspace.h"
+#include "EventResponder.h"
 
 #define __ASM __asm
 #define __STATIC_INLINE static inline
@@ -58,6 +59,59 @@ extern uint32_t systick_safe_read;
 
 
 namespace freertos {
+FLASHMEM void yield() {
+    static uint8_t running = 0;
+    if (!yield_active_check_flags) {
+        // nothing to do
+        return;
+    }
+    if (running) {
+        return;
+    }
+    running = 1;
+
+    // USB Serial - Add hack to minimize impact...
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIAL) {
+        if (Serial.available()) {
+            serialEvent();
+        }
+        if (_serialEvent_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIAL;
+        }
+    }
+
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB1) {
+        if (SerialUSB1.available()) {
+            serialEventUSB1();
+        }
+        if (_serialEventUSB1_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB1;
+        }
+    }
+#endif // USB_DUAL_SERIAL || USB_TRIPLE_SERIAL
+#ifdef USB_TRIPLE_SERIAL
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB2) {
+        if (SerialUSB2.available()) {
+            serialEventUSB2();
+        }
+        if (_serialEventUSB2_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB2;
+        }
+    }
+#endif // USB_TRIPLE_SERIAL
+
+    // Current workaround until integrate with EventResponder.
+    if (yield_active_check_flags & YIELD_CHECK_HARDWARE_SERIAL) {
+        HardwareSerial::processSerialEventsList();
+    }
+
+    running = 0;
+    if (yield_active_check_flags & YIELD_CHECK_EVENT_RESPONDER) {
+        EventResponder::runFromYield();
+    }
+}
+
 FLASHMEM void delay_ms(const uint32_t ms) {
     constexpr uint32_t CYCLES_MS { 10'000'000UL / 2'100UL }; // FIXME: check time, should be ~10 ms
     const uint32_t n { ms / 10 };

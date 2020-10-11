@@ -30,6 +30,7 @@
 #include "teensy.h"
 #include "event_responder_support.h"
 #include "util/atomic.h"
+#include "EventResponder.h"
 
 #define __ASM __asm
 #define __STATIC_INLINE static inline
@@ -55,7 +56,70 @@ uint32_t set_arm_clock(uint32_t) { // dummy
 } // extern C
 
 
+#ifdef USB_TRIPLE_SERIAL
+extern uint8_t yield_active_check_flags;
+extern const uint8_t _serialEventUSB2_default;
+extern const uint8_t _serialEventUSB1_default;
+#elif defined(USB_DUAL_SERIAL)
+extern uint8_t yield_active_check_flags;
+extern const uint8_t _serialEventUSB1_default;
+#else
+extern uint8_t yield_active_check_flags;
+#endif
+extern const uint8_t _serialEvent_default;
+
 namespace freertos {
+void yield() {
+    static uint8_t running = 0;
+    if (!yield_active_check_flags) {
+        // nothing to do
+        return;
+    }
+    if (running) {
+        return;
+    }
+    running = 1;
+
+    // USB Serial - Add hack to minimize impact...
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIAL) {
+        if (Serial.available()) {
+            serialEvent();
+        }
+        if (_serialEvent_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIAL;
+        }
+    }
+    // Current workaround until integrate with EventResponder.
+
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB1) {
+        if (SerialUSB1.available()) {
+            serialEventUSB1();
+        }
+        if (_serialEventUSB1_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB1;
+        }
+    }
+#endif // USB_DUAL_SERIAL || USB_TRIPLE_SERIAL
+#ifdef USB_TRIPLE_SERIAL
+    if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB2) {
+        if (SerialUSB2.available()) {
+            serialEventUSB2();
+        }
+        if (_serialEventUSB2_default) {
+            yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB2;
+        }
+    }
+#endif // USB_TRIPLE_SERIAL
+    if (yield_active_check_flags & YIELD_CHECK_HARDWARE_SERIAL) {
+        HardwareSerial::processSerialEventsList();
+    }
+    running = 0;
+    if (yield_active_check_flags & YIELD_CHECK_EVENT_RESPONDER) {
+        EventResponder::runFromYield();
+    }
+}
+
 /**
  * @brief Check for USB events pending and call the USB ISR
  */

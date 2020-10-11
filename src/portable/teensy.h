@@ -49,6 +49,8 @@ void assert_blink(const char* file, int line, const char* func, const char* expr
 } // extern C
 
 namespace freertos {
+void yield();
+
 /**
  * @brief Delay between led error flashes
  * @param[in] ms: Milliseconds to delay

@@ -142,13 +142,6 @@ FLASHMEM void print_ram_usage() {
 } // namespace freertos
 
 extern "C" {
-#if configUSE_IDLE_HOOK == 1
-void vApplicationIdleHook();
-void vApplicationIdleHook() {
-    ::yield();
-}
-#endif // configUSE_IDLE_HOOK
-
 void startup_late_hook() FLASHMEM;
 void startup_late_hook() {
     if (DEBUG) {
@@ -167,6 +160,16 @@ void event_responder_set_pend_sv() {
         ::xTaskNotifyIndexed(freertos::g_event_responder_task, 1, 0, eNoAction);
     }
 }
+
+FLASHMEM void yield() {
+    if (freertos::g_yield_task) {
+        ::xTaskNotifyIndexed(freertos::g_yield_task, 1, 0, eNoAction);
+    }
+}
+
+#if configUSE_IDLE_HOOK == 1
+void vApplicationIdleHook() {}
+#endif // configUSE_IDLE_HOOK
 
 #if configUSE_MALLOC_FAILED_HOOK == 1
 static FLASHMEM void vApplicationMallocFailedHook() {
