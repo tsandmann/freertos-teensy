@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * FreeRTOS Kernel V10.4.1
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.

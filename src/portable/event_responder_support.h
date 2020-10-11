@@ -31,8 +31,12 @@
 typedef struct tskTaskControlBlock* TaskHandle_t;
 
 namespace freertos {
-static constexpr uint16_t EVENT_TASK_STACK_SIZE { 512 };
+static constexpr uint16_t YIELD_TASK_PERIOD_MS { 10 };
+static constexpr uint8_t YIELD_TASK_PRIORITY { 0 };
+static constexpr uint16_t YIELD_TASK_STACK_SIZE { 256 };
+static constexpr uint16_t EVENT_TASK_STACK_SIZE { 256 };
 
+extern TaskHandle_t g_yield_task;
 extern TaskHandle_t g_event_responder_task;
 
 void setup_event_responder();

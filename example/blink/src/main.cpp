@@ -24,6 +24,7 @@
  */
 
 #include "arduino_freertos.h"
+#include <avr/pgmspace.h>
 
 
 static void task1(void*) {
@@ -46,12 +47,12 @@ static void task2(void*) {
     }
 }
 
-void setup() {
+FLASHMEM __attribute__((noinline)) void setup() {
     ::Serial.begin(115'200);
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
     ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
 
-    ::delay(2'000);
+    ::delay(5'000);
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 128, nullptr, 2, nullptr);
