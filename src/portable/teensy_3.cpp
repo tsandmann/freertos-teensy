@@ -68,6 +68,7 @@ extern uint8_t yield_active_check_flags;
 #endif
 extern const uint8_t _serialEvent_default;
 
+
 namespace freertos {
 void yield() {
     static uint8_t running = 0;

@@ -58,6 +58,19 @@ extern uint32_t systick_safe_read;
 } // extern C
 
 
+#ifdef USB_TRIPLE_SERIAL
+extern uint8_t yield_active_check_flags;
+extern const uint8_t _serialEventUSB2_default;
+extern const uint8_t _serialEventUSB1_default;
+#elif defined(USB_DUAL_SERIAL)
+extern uint8_t yield_active_check_flags;
+extern const uint8_t _serialEventUSB1_default;
+#else
+extern uint8_t yield_active_check_flags;
+#endif
+extern const uint8_t _serialEvent_default;
+
+
 namespace freertos {
 FLASHMEM void yield() {
     static uint8_t running = 0;
