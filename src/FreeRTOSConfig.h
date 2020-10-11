@@ -117,14 +117,19 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-void assert_blink(const char*, int, const char*, const char*) __attribute__((noreturn, section(".flashmem")));
+void assert_blink(const char*, int, const char*, const char*) __attribute__((noreturn));
 #ifdef __cplusplus
 }
 #define ASSERT_LOG(_msg) assert_blink("", __LINE__, __PRETTY_FUNCTION__, #_msg);
 #else
+#if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
+#define PROGMEM_FREERTOS __attribute__((section(".progmem")))
+#else
+#define PROGMEM_FREERTOS
+#endif
 #define ASSERT_LOG(_msg)                                                            \
     {                                                                               \
-        static const char _file_[] __attribute__((section(".progmem"))) = __FILE__; \
+        static const char _file_[] PROGMEM_FREERTOS = __FILE__;                     \
         assert_blink((const char*) _file_, __LINE__, __PRETTY_FUNCTION__, #_msg);   \
     }
 #endif // __cplusplus
