@@ -125,17 +125,17 @@ FLASHMEM void yield() {
     }
 }
 
-FLASHMEM void delay_ms(const uint32_t ms) {
-    constexpr uint32_t CYCLES_MS { 10'000'000UL / 2'100UL }; // FIXME: check time, should be ~10 ms
+FLASHMEM void delay_ms(const uint32_t ms) { // FIXME: check time, should be ~10 ms
+    const uint32_t cycles_ms { static_cast<uint32_t>((1ULL << 32) * 1'000'000ULL / 2'100ULL / static_cast<uint64_t>(scale_cpu_cycles_to_microseconds)) };
     const uint32_t n { ms / 10 };
     for (uint32_t i {}; i < n; ++i) {
         // FIXME: poll USB?
-        for (uint32_t i {}; i < 10UL * CYCLES_MS; ++i) {
+        for (uint32_t i {}; i < 10UL * cycles_ms; ++i) {
             __asm volatile("nop");
         }
     }
 
-    const uint32_t iterations { (ms % 10) * CYCLES_MS };
+    const uint32_t iterations { (ms % 10) * cycles_ms };
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
