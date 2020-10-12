@@ -30,9 +30,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/lock.h>
-#include <avr/pgmspace.h>
 #include <unwind.h>
 
+#include "avr/pgmspace.h"
 #include "teensy.h"
 #include "event_responder_support.h"
 
