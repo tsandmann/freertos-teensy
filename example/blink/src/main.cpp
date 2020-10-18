@@ -24,7 +24,7 @@
  */
 
 #include "arduino_freertos.h"
-#include <avr/pgmspace.h>
+#include "avr/pgmspace.h"
 
 
 static void task1(void*) {
