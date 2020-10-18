@@ -30,9 +30,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/lock.h>
-#include <avr/pgmspace.h>
 #include <unwind.h>
 
+#include "avr/pgmspace.h"
 #include "teensy.h"
 #include "event_responder_support.h"
 
@@ -114,7 +114,7 @@ FLASHMEM void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
     ::pinMode(debug_led_pin, arduino::OUTPUT);
-    ::set_arm_clock(10'000'000UL);
+    ::set_arm_clock(16'000'000UL);
 
     while (true) {
         for (uint8_t i {}; i < n; ++i) {

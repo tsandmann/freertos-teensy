@@ -186,3 +186,5 @@ static constexpr bool digitalPinHasPWM(uint8_t p) {
 #endif
 
 } // namespace arduino
+
+#include "portable/teensy.h"
