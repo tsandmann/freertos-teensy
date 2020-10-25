@@ -397,6 +397,14 @@ BaseType_t xPortStartScheduler( void )
 
 void vPortEndScheduler( void )
 {
+    /* Cancel the Idle task and free its resources */
+    vTaskDelete( xTaskGetIdleTaskHandle() );
+#if ( configUSE_TIMERS == 1 )
+    extern TaskHandle_t xTimerGetTimerDaemonTaskHandle( void );
+    /* Cancel the Timer task and free its resources */
+    vTaskDelete( xTimerGetTimerDaemonTaskHandle() );
+#endif /* configUSE_TIMERS */
+
 	/* Stop and clear the SysTick. */
 	portNVIC_SYSTICK_CTRL_REG = 0UL;
 	portNVIC_SYSTICK_CURRENT_VALUE_REG = 0UL;
