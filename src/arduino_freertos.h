@@ -37,6 +37,13 @@
 #if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
 #endif
+#if defined(__has_include) && __has_include("SdFat.h")
+#include "SdFat.h"
+#endif
+#if defined(__has_include) && __has_include("SpiDriver/SdSpiArduinoDriver.h")
+#include "SpiDriver/SdSpiDriver.h"
+#include "SpiDriver/SdSpiArduinoDriver.h"
+#endif
 
 /* get rid of these stupid macros... */
 #undef word
@@ -158,6 +165,9 @@ static constexpr uint8_t INPUT_PULLDOWN { 3 };
 static constexpr uint8_t OUTPUT_OPENDRAIN { 4 };
 static constexpr uint8_t INPUT_DISABLE { 5 };
 
+static constexpr uint8_t LSBFIRST { 0 };
+static constexpr uint8_t MSBFIRST { 1 };
+
 static constexpr uint8_t LED_BUILTIN { 13 };
 
 static constexpr uint8_t LOW { 0 };
@@ -166,6 +176,11 @@ static constexpr uint8_t HIGH { 1 };
 static constexpr uint8_t FALLING { 2 };
 static constexpr uint8_t RISING { 3 };
 static constexpr uint8_t CHANGE { 4 };
+
+static constexpr uint8_t DEC { 10 };
+static constexpr uint8_t HEX { 16 };
+static constexpr uint8_t OCT { 8 };
+static constexpr uint8_t BIN { 2 };
 
 #if defined __IMXRT1062__ && defined ARDUINO_TEENSY40
 static constexpr bool digitalPinHasPWM(uint8_t p) {
