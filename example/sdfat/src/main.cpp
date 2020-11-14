@@ -31,41 +31,49 @@
 
 static void task1(void*) {
     while (true) {
-        ::digitalWriteFast(arduino::LED_BUILTIN, arduino::LOW);
+#ifndef USE_ARDUINO_DEFINES
+        arduino::digitalWriteFast(arduino::LED_BUILTIN, arduino::LOW);
+#else
+        digitalWriteFast(LED_BUILTIN, LOW);
+#endif
         ::vTaskDelay(pdMS_TO_TICKS(500));
 
-        ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
+#ifndef USE_ARDUINO_DEFINES
+        arduino::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
+#else
+        digitalWriteFast(LED_BUILTIN, HIGH);
+#endif
         ::vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
 static void task2(void*) {
     if (!SD.begin(BUILTIN_SDCARD)) {
-        ::Serial.println("initialization failed!");
+        arduino::Serial.println("initialization failed!");
     } else {
-        ::Serial.println("initialization done.");
+        arduino::Serial.println("initialization done.");
     }
 
     File root;
     while (true) {
-        ::Serial.println("TICK");
+        arduino::Serial.println("TICK");
         ::vTaskDelay(pdMS_TO_TICKS(1'000));
 
-        ::Serial.println("TOCK");
+        arduino::Serial.println("TOCK");
         ::vTaskDelay(pdMS_TO_TICKS(1'000));
 
 
         root = SD.open("/");
         if (!root.isDirectory()) {
-            ::Serial.println("open / failed!");
+            arduino::Serial.println("open / failed!");
             if (!SD.begin(BUILTIN_SDCARD)) {
-                ::Serial.println("initialization failed!");
+                arduino::Serial.println("initialization failed!");
                 continue;
             }
-            ::Serial.println("initialization done.");
+            arduino::Serial.println("initialization done.");
             root = SD.open("/");
             if (!root.isDirectory()) {
-                ::Serial.println("open / failed!");
+                arduino::Serial.println("open / failed!");
                 continue;
             }
         }
@@ -78,32 +86,36 @@ static void task2(void*) {
 
             ::Serial.print(entry.name());
             if (!entry.isDirectory()) {
-                ::Serial.print("\t\t");
-                ::Serial.println(entry.size());
+                arduino::Serial.print("\t\t");
+                arduino::Serial.println(entry.size());
             } else {
-                ::Serial.println();
+                arduino::Serial.println();
             }
 
             entry.close();
         }
         root.close();
         SD.sdfs.end();
-        ::Serial.println("\n");
+        arduino::Serial.println("\n");
     }
 }
 
 FLASHMEM __attribute__((noinline)) void setup() {
-    ::Serial.begin(115'200);
+    arduino::Serial.begin(115'200);
+#ifndef USE_ARDUINO_DEFINES
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
     ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
-
-    ::delay(5'000);
+#else
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWriteFast(LED_BUILTIN, HIGH);
+#endif
+    arduino::delay(5'000);
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 2048, nullptr, 2, nullptr);
 
-    ::Serial.println("setup(): starting scheduler...");
-    ::Serial.flush();
+    arduino::Serial.println("setup(): starting scheduler...");
+    arduino::Serial.flush();
 
     ::vTaskStartScheduler();
 }

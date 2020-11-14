@@ -42,6 +42,8 @@
 
 static constexpr bool DEBUG { false };
 
+using namespace arduino;
+
 extern "C" {
 asm(".global _printf_float"); /**< printf supporting floating point values */
 
@@ -57,7 +59,7 @@ extern uint32_t set_arm_clock(uint32_t frequency);
 
 uint8_t get_debug_led_pin() __attribute__((weak)) FLASHMEM;
 uint8_t get_debug_led_pin() {
-    return arduino::LED_BUILTIN;
+    return LED_BUILTIN;
 }
 
 FLASHMEM void serial_puts(const char* str) {
@@ -113,7 +115,7 @@ namespace freertos {
 FLASHMEM void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
-    ::pinMode(debug_led_pin, arduino::OUTPUT);
+    ::pinMode(debug_led_pin, OUTPUT);
     ::set_arm_clock(16'000'000UL);
 
     while (true) {
