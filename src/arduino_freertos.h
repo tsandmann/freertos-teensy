@@ -37,15 +37,27 @@
 #if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
 #endif
+#if defined(__has_include) && __has_include("SdFat.h")
+#include "SdFat.h"
+#endif
+#if defined(__has_include) && __has_include("SpiDriver/SdSpiArduinoDriver.h")
+#include "SpiDriver/SdSpiDriver.h"
+#include "SpiDriver/SdSpiArduinoDriver.h"
+#endif
 
-/* get rid of these stupid macros... */
+/* get rid of these stupid macros, as they are incompatible with C++ stdlib */
+#undef false
+#undef true
+#undef bit
 #undef word
-#undef F
 #undef min
 #undef max
 #undef abs
-#undef constrain
 #undef round
+
+#ifndef USE_ARDUINO_DEFINES
+#undef F
+#undef constrain
 #undef radians
 #undef degrees
 #undef sq
@@ -63,15 +75,11 @@
 #undef bitSet
 #undef bitClear
 #undef bitWrite
-#undef bit
-#undef false
-#undef true
 #undef BIN
 #undef OCT
 #undef DEC
 #undef HEX
 #undef BYTE
-
 #undef HIGH
 #undef LOW
 #undef INPUT
@@ -88,6 +96,7 @@
 #undef RISING
 #undef digitalPinHasPWM
 #undef LED_BUILTIN
+#endif // USE_ARDUINO_DEFINES
 
 namespace arduino {
 using ::analogRead;
@@ -151,12 +160,16 @@ T map(const T x, const T in_min, const T in_max, const T out_min, const T out_ma
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
+#ifndef USE_ARDUINO_DEFINES
 static constexpr uint8_t INPUT { 0 };
 static constexpr uint8_t OUTPUT { 1 };
 static constexpr uint8_t INPUT_PULLUP { 2 };
 static constexpr uint8_t INPUT_PULLDOWN { 3 };
 static constexpr uint8_t OUTPUT_OPENDRAIN { 4 };
 static constexpr uint8_t INPUT_DISABLE { 5 };
+
+static constexpr uint8_t LSBFIRST { 0 };
+static constexpr uint8_t MSBFIRST { 1 };
 
 static constexpr uint8_t LED_BUILTIN { 13 };
 
@@ -166,6 +179,11 @@ static constexpr uint8_t HIGH { 1 };
 static constexpr uint8_t FALLING { 2 };
 static constexpr uint8_t RISING { 3 };
 static constexpr uint8_t CHANGE { 4 };
+
+static constexpr uint8_t DEC { 10 };
+static constexpr uint8_t HEX { 16 };
+static constexpr uint8_t OCT { 8 };
+static constexpr uint8_t BIN { 2 };
 
 #if defined __IMXRT1062__ && defined ARDUINO_TEENSY40
 static constexpr bool digitalPinHasPWM(uint8_t p) {
@@ -184,6 +202,7 @@ static constexpr bool digitalPinHasPWM(uint8_t p) {
     return ((p) >= 2 && (p) <= 10) || (p) == 14 || (p) == 16 || (p) == 17 || ((p) >= 20 && (p) <= 23) || (p) == 29 || (p) == 30 || ((p) >= 35 && (p) <= 38);
 }
 #endif
+#endif // USE_ARDUINO_DEFINES
 
 } // namespace arduino
 
