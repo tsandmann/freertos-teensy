@@ -34,6 +34,8 @@
 ///
 
 #include "arduino_freertos.h"
+
+#if _GCC_VERSION >= 60100
 #include "gthr_key_type.h"
 
 #include <thread>
@@ -160,3 +162,4 @@ TaskHandle_t gthr_freertos::get_freertos_handle(std::thread* p_thread) {
 }
 
 } // namespace free_rtos_std
+#endif // _GCC_VERSION >= 60100

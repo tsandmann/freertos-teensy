@@ -37,6 +37,8 @@
 
 #include "arduino_freertos.h"
 #include "semphr.h"
+
+#if _GCC_VERSION >= 60100
 #include "thread_gthread.h"
 #include "condition_variable.h"
 #include "gthr_key.h"
@@ -230,3 +232,10 @@ static inline int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mut
 }
 
 } // extern "C"
+#else
+#warning "Compiler too old for std::thread support with FreeRTOS."
+#undef _GLIBCXX_HAS_GTHREADS
+#undef __GTHREADS
+typedef SemaphoreHandle_t __gthread_mutex_t;
+typedef SemaphoreHandle_t __gthread_recursive_mutex_t;
+#endif // _GCC_VERSION

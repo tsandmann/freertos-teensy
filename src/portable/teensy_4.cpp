@@ -26,6 +26,7 @@
 #if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
 #include <cstring>
 #include <malloc.h>
+#include <tuple>
 
 #include "teensy.h"
 #include "event_responder_support.h"
@@ -139,7 +140,7 @@ FLASHMEM void delay_ms(const uint32_t ms) { // FIXME: check time, should be ~10 
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
-    __isb();
+    __asm volatile ("isb" ::: "memory");
 }
 
 FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
@@ -169,7 +170,7 @@ FASTRUN uint64_t get_us() {
         scc = systick_cycle_count;
     } while (__STREXW(1, &systick_safe_read));
     const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    __dmb();
+    __asm volatile ("dmb" ::: "memory");
     const uint32_t ccdelta { cyccnt - scc };
     uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
     if (frac > 1'000) {

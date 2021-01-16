@@ -27,6 +27,10 @@
 #define _GLIBCXX_HAS_GTHREADS
 #endif
 
+#ifndef _GCC_VERSION
+#define _GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#endif
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "Arduino.h"

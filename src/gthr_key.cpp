@@ -33,6 +33,8 @@
 /// adapted for use with the teensy FreeRTOS port by Timo Sandmann
 ///
 
+
+#if (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) >= 60100
 #include "gthr_key_type.h"
 
 
@@ -83,3 +85,4 @@ int freertos_gthread_setspecific(Key* key, const void* ptr) {
 }
 
 } // namespace free_rtos_std
+#endif // GCC VERSION >= 60100

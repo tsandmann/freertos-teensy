@@ -34,6 +34,8 @@
 ///
 
 #include "freertos_time.h"
+
+#if _GCC_VERSION >= 60100
 #include "critical_section.h"
 
 #include <sys/time.h>
@@ -66,3 +68,12 @@ void set_system_clock(const time_point<system_clock, system_clock::duration>& ti
     free_rtos_std::wall_clock::time({ sec, usec });
 }
 } // namespace free_rtos_std
+#else 
+namespace free_rtos_std {
+timeval wall_clock::get_offset() {
+    return _timeOffset;
+}
+
+timeval wall_clock::_timeOffset;
+} // namespace free_rtos_std
+#endif // _GCC_VERSION
