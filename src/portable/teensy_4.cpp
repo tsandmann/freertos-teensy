@@ -26,6 +26,7 @@
 #if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
 #include <cstring>
 #include <malloc.h>
+#include <tuple>
 
 #include "teensy.h"
 #include "event_responder_support.h"
@@ -49,7 +50,7 @@ extern unsigned long _ebss;
 extern unsigned long _sdata;
 extern unsigned long _edata;
 extern unsigned long _itcm_block_count;
-static uint8_t* current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
+extern uint8_t* _g_current_heap_end;
 
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
@@ -139,7 +140,7 @@ FLASHMEM void delay_ms(const uint32_t ms) { // FIXME: check time, should be ~10 
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
-    __isb();
+    __asm volatile("isb" ::: "memory");
 }
 
 FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
@@ -147,7 +148,7 @@ FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage()
     const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - reinterpret_cast<uint8_t*>(0x20'000'000)) + blk_cnt * 32'768U };
     const size_t bss { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_ebss) - reinterpret_cast<uint8_t*>(&_sbss)) };
     const size_t data { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_edata) - reinterpret_cast<uint8_t*>(&_sdata)) };
-    const size_t system_free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - current_heap_end) - 8'192U };
+    const size_t system_free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - _g_current_heap_end) - 8'192U };
     const auto info { mallinfo() };
     const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, data, bss, info.uordblks, system_free, ram_size };
     return ret;
@@ -169,7 +170,7 @@ FASTRUN uint64_t get_us() {
         scc = systick_cycle_count;
     } while (__STREXW(1, &systick_safe_read));
     const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    __dmb();
+    __asm volatile("dmb" ::: "memory");
     const uint32_t ccdelta { cyccnt - scc };
     uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
     if (frac > 1'000) {

@@ -36,6 +36,7 @@
 #include "arduino_freertos.h"
 #include "semphr.h"
 
+#if _GCC_VERSION >= 60100
 #include <condition_variable>
 
 namespace std {
@@ -164,7 +165,7 @@ void key_init() {
     };
     static key_s ks;
     // Also make sure the callbacks are run by std::exit.
-    std::atexit(run);
+    atexit(run);
 }
 } // namespace
 
@@ -181,3 +182,4 @@ void notify_all_at_thread_exit(condition_variable& cv, unique_lock<mutex> l) {
 }
 
 } // namespace std
+#endif // _GCC_VERSION >= 60100

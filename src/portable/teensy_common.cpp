@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include <sys/lock.h>
 #include <unwind.h>
+#include <tuple>
 
 #include "avr/pgmspace.h"
 #include "teensy.h"
@@ -50,11 +51,11 @@ asm(".global _printf_float"); /**< printf supporting floating point values */
 extern unsigned long _heap_end;
 extern unsigned long _estack;
 extern unsigned long _ebss;
-static uint8_t* current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern uint32_t set_arm_clock(uint32_t frequency);
+uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
 
 uint8_t get_debug_led_pin() __attribute__((weak)) FLASHMEM;
@@ -188,12 +189,6 @@ FLASHMEM void yield() {
 void vApplicationIdleHook() {}
 #endif // configUSE_IDLE_HOOK
 
-#if configUSE_MALLOC_FAILED_HOOK == 1
-static FLASHMEM void vApplicationMallocFailedHook() {
-    freertos::error_blink(2);
-}
-#endif // configUSE_MALLOC_FAILED_HOOK
-
 void vApplicationStackOverflowHook(TaskHandle_t, char*) FLASHMEM;
 
 void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
@@ -206,21 +201,29 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     freertos::error_blink(3);
 }
 
+#ifdef PLATFORMIO
+#if configUSE_MALLOC_FAILED_HOOK == 1
+static FLASHMEM void vApplicationMallocFailedHook() {
+    freertos::error_blink(2);
+}
+#endif // configUSE_MALLOC_FAILED_HOOK
+
+// FIXME: needs update of teensy cores library
 void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
     if (DEBUG) {
-        printf_debug(PSTR("_sbrk(%u)\n"), incr);
-        printf_debug(PSTR("current_heap_end=0x%x\n"), reinterpret_cast<uintptr_t>(current_heap_end));
-        printf_debug(PSTR("_ebss=0x%x\n"), reinterpret_cast<uintptr_t>(&_ebss));
-        printf_debug(PSTR("_estack=0x%x\n"), reinterpret_cast<uintptr_t>(&_estack));
+        printf_debug(PSTR("_sbrk(%u)\r\n"), incr);
+        printf_debug(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(_g_current_heap_end));
+        printf_debug(PSTR("_ebss=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_ebss));
+        printf_debug(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
     }
 
-    void* previous_heap_end { current_heap_end };
+    void* previous_heap_end { _g_current_heap_end };
 
-    if ((reinterpret_cast<uintptr_t>(current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
-        || (reinterpret_cast<uintptr_t>(current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
-        printf_debug(PSTR("_sbrk(%u): no mem available.\n"), incr);
+    if ((reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
+        || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
+        printf_debug(PSTR("_sbrk(%u): no mem available.\r\n"), incr);
 #if configUSE_MALLOC_FAILED_HOOK == 1
         ::vApplicationMallocFailedHook();
 #else
@@ -229,9 +232,10 @@ void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
         return reinterpret_cast<void*>(-1); // the malloc-family routine that called sbrk will return 0
     }
 
-    current_heap_end += incr;
+    _g_current_heap_end += incr;
     return previous_heap_end;
 }
+#endif // ! PLATFORMIO
 
 static UBaseType_t int_nesting {};
 static UBaseType_t int_prio {};

@@ -28,7 +28,12 @@
 #include "arduino_freertos.h"
 
 #include <cstdint>
-#include <tuple>
+
+
+namespace std {
+template<class... Types>
+class tuple;
+}
 
 
 extern "C" {
