@@ -55,6 +55,7 @@ extern unsigned long _ebss;
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern uint32_t set_arm_clock(uint32_t frequency);
+uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
 
 uint8_t get_debug_led_pin() __attribute__((weak)) FLASHMEM;
@@ -210,19 +211,18 @@ static FLASHMEM void vApplicationMallocFailedHook() {
 // FIXME: needs update of teensy cores library
 void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
-    static uint8_t* current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
     if (DEBUG) {
         printf_debug(PSTR("_sbrk(%u)\r\n"), incr);
-        printf_debug(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(current_heap_end));
+        printf_debug(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(_g_current_heap_end));
         printf_debug(PSTR("_ebss=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_ebss));
         printf_debug(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
     }
 
-    void* previous_heap_end { current_heap_end };
+    void* previous_heap_end { _g_current_heap_end };
 
-    if ((reinterpret_cast<uintptr_t>(current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
-        || (reinterpret_cast<uintptr_t>(current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
+    if ((reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
+        || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
         printf_debug(PSTR("_sbrk(%u): no mem available.\r\n"), incr);
 #if configUSE_MALLOC_FAILED_HOOK == 1
         ::vApplicationMallocFailedHook();
@@ -232,7 +232,7 @@ void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
         return reinterpret_cast<void*>(-1); // the malloc-family routine that called sbrk will return 0
     }
 
-    current_heap_end += incr;
+    _g_current_heap_end += incr;
     return previous_heap_end;
 }
 #endif // ! PLATFORMIO

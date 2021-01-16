@@ -49,7 +49,7 @@ extern unsigned long _sbss;
 extern unsigned long _ebss;
 extern unsigned long _sdata;
 extern unsigned long _edata;
-static uint8_t* current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
+extern uint8_t* _g_current_heap_end;
 
 uint32_t set_arm_clock(uint32_t) { // dummy
     return F_CPU;
@@ -150,7 +150,7 @@ void delay_ms(const uint32_t ms) {
 
 std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
     const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - reinterpret_cast<uint8_t*>(0x1fff'0000)) };
-    const size_t system_free { (reinterpret_cast<uint8_t*>(&_estack) - current_heap_end) - 1024UL };
+    const size_t system_free { (reinterpret_cast<uint8_t*>(&_estack) - _g_current_heap_end) - 1024UL };
     const auto info { mallinfo() };
     const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, 0, 0, info.uordblks, system_free, ram_size };
     return ret;
