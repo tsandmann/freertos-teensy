@@ -24,6 +24,10 @@
  */
 
 #include "arduino_freertos.h"
+#if _GCC_VERSION < 60100
+#error "Compiler too old for std::thread support with FreeRTOS."
+#endif
+
 #include "freertos_time.h"
 
 #include <thread>
