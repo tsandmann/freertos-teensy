@@ -95,7 +95,9 @@ static void task2(void*) {
             entry.close();
         }
         root.close();
+#ifdef SDFAT_BASE
         SD.sdfs.end();
+#endif
         arduino::Serial.println("\n");
     }
 }
