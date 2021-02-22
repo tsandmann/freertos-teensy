@@ -182,6 +182,8 @@ void event_responder_set_pend_sv() {
 FLASHMEM void yield() {
     if (freertos::g_yield_task) {
         ::xTaskNotifyIndexed(freertos::g_yield_task, 1, 0, eNoAction);
+    } else {
+        freertos::yield();
     }
 }
 
