@@ -37,7 +37,9 @@
 #include "teensy.h"
 #include "event_responder_support.h"
 
+#if defined(__has_include) && __has_include("freertos_time.h")
 #include "freertos_time.h"
+#endif
 #include "semphr.h"
 
 
@@ -272,7 +274,11 @@ int _getpid() {
 
 FLASHMEM int _gettimeofday(timeval* tv, void*) {
     const auto now_us { freertos::get_us() };
+#if defined(__has_include) && __has_include("freertos_time.h")
     const auto off { free_rtos_std::wall_clock::get_offset() };
+#else
+    const timeval off { 0, 0 };
+#endif
     const timeval now { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
 
     timeradd(&off, &now, tv);

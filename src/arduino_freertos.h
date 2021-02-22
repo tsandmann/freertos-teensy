@@ -37,9 +37,18 @@
 #include "Print.h"
 #if defined(__has_include) && __has_include("Wire.h")
 #include "Wire.h"
+#else
+class TwoWire;
+class Wire;
+class Wire1;
+class Wire2;
 #endif
 #if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
+#else
+class SPI;
+class SPI1;
+class SPI2;
 #endif
 #if defined(__has_include) && __has_include("SdFat.h")
 #include "SdFat.h"
