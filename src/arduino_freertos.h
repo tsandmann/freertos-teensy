@@ -42,6 +42,7 @@ class TwoWire;
 class Wire;
 class Wire1;
 class Wire2;
+class Wire3;
 #endif
 #if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
@@ -150,15 +151,13 @@ using ::SPI1;
 using ::SPI2;
 #endif // _SPI_H_INCLUDED
 using ::Stream;
-#if defined TwoWireKinetis_h || defined TwoWireIMXRT_h
 using ::TwoWire;
 using ::Wire;
 using ::Wire1;
 using ::Wire2;
-#if defined TwoWireKinetis_h && defined WIRE_IMPLEMENT_WIRE3
+#ifdef WIRE_IMPLEMENT_WIRE3
 using ::Wire3;
 #endif
-#endif // TwoWireKinetis_h || defined TwoWireIMXRT_h
 
 using ::String;
 
