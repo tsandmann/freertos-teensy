@@ -190,6 +190,8 @@ void vPortSetupTimerInterrupt() {
     if (DEBUG) {
         printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
     }
+    
+    __disable_irq();
 
     /* stop and clear the SysTick */
     SYST_CSR = 0;
@@ -230,113 +232,102 @@ void vApplicationTickHook() {
 }
 #endif // configUSE_TICK_HOOK
 
+#ifdef PRINT_DEBUG_STUFF
+#define FAULT_PRINTF printf_debug
+#else
+#define FAULT_PRINTF ::Serial.printf
+#endif
+
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
+    __disable_irq();
+
     unsigned int sp;
     __asm__ volatile("mov %0, sp" : "=r"(sp)::);
 
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
 
-    ::vTaskSuspendAll();
-
-    ::Serial.print(PSTR("Fault IRQ:    0x"));
-    ::Serial.println(addr & 0x1ff, 16);
-    ::Serial.print(PSTR(" sp:          0x"));
-    ::Serial.println(sp, 16);
-    ::Serial.print(PSTR(" stacked_r0:  0x"));
-    ::Serial.println(hardfault_args[0], 16);
-    ::Serial.print(PSTR(" stacked_r1:  0x"));
-    ::Serial.println(hardfault_args[1], 16);
-    ::Serial.print(PSTR(" stacked_r2:  0x"));
-    ::Serial.println(hardfault_args[2], 16);
-    ::Serial.print(PSTR(" stacked_r3:  0x"));
-    ::Serial.println(hardfault_args[3], 16);
-    ::Serial.print(PSTR(" stacked_r12: 0x"));
-    ::Serial.println(hardfault_args[4], 16);
-    ::Serial.print(PSTR(" stacked_lr:  0x"));
-    ::Serial.println(hardfault_args[5], 16);
-    ::Serial.print(PSTR(" stacked_pc:  0x"));
-    ::Serial.println(hardfault_args[6], 16);
-    ::Serial.print(PSTR(" stacked_psr: 0x"));
-    ::Serial.println(hardfault_args[7], 16);
+    FAULT_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
+    FAULT_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
+    FAULT_PRINTF(PSTR(" stacked_r0:  0x%x\r\n"), hardfault_args[0]);
+    FAULT_PRINTF(PSTR(" stacked_r1:  0x%x\r\n"), hardfault_args[1]);
+    FAULT_PRINTF(PSTR(" stacked_r2:  0x%x\r\n"), hardfault_args[2]);
+    FAULT_PRINTF(PSTR(" stacked_r3:  0x%x\r\n"), hardfault_args[3]);
+    FAULT_PRINTF(PSTR(" stacked_r12: 0x%x\r\n"), hardfault_args[4]);
+    FAULT_PRINTF(PSTR(" stacked_lr:  0x%x\r\n"), hardfault_args[5]);
+    FAULT_PRINTF(PSTR(" stacked_pc:  0x%x\r\n"), hardfault_args[6]);
+    FAULT_PRINTF(PSTR(" stacked_psr: 0x%x\r\n"), hardfault_args[7]);
 
     const auto _CFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED28);
-    ::Serial.print(PSTR(" _CFSR:       0x"));
-    ::Serial.println(_CFSR, 16);
+    FAULT_PRINTF(PSTR(" _CFSR:       0x%x\r\n"), _CFSR);
 
     if (_CFSR > 0) {
         /* Memory Management Faults */
         if ((_CFSR & 1) == 1) {
-            ::Serial.println(PSTR("  (IACCVIOL)    Instruction Access Violation"));
+            FAULT_PRINTF(PSTR("  (IACCVIOL)    Instruction Access Violation\r\n"));
         } else if (((_CFSR & (0x02)) >> 1) == 1) {
-            ::Serial.println(PSTR("  (DACCVIOL)    Data Access Violation"));
+            FAULT_PRINTF(PSTR("  (DACCVIOL)    Data Access Violation\r\n"));
         } else if (((_CFSR & (0x08)) >> 3) == 1) {
-            ::Serial.println(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking"));
+            FAULT_PRINTF(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking\r\n"));
         } else if (((_CFSR & (0x10)) >> 4) == 1) {
-            ::Serial.println(PSTR("  (MSTKERR)     MemMange Fault on stacking"));
+            FAULT_PRINTF(PSTR("  (MSTKERR)     MemMange Fault on stacking\r\n"));
         } else if (((_CFSR & (0x20)) >> 5) == 1) {
-            ::Serial.println(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State"));
+            FAULT_PRINTF(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State\r\n"));
         }
         if (((_CFSR & (0x80)) >> 7) == 1) {
-            ::Serial.println(PSTR("  (MMARVALID)   MemMange Fault Address Valid"));
+            FAULT_PRINTF(PSTR("  (MMARVALID)   MemMange Fault Address Valid\r\n"));
         }
         /* Bus Fault Status Register */
         if (((_CFSR & 0x100) >> 8) == 1) {
-            ::Serial.println(PSTR("  (IBUSERR)     Instruction Bus Error"));
+            FAULT_PRINTF(PSTR("  (IBUSERR)     Instruction Bus Error\r\n"));
         } else if (((_CFSR & (0x200)) >> 9) == 1) {
-            ::Serial.println(PSTR("  (PRECISERR)   Data bus error(address in BFAR)"));
+            FAULT_PRINTF(PSTR("  (PRECISERR)   Data bus error(address in BFAR)\r\n"));
         } else if (((_CFSR & (0x400)) >> 10) == 1) {
-            ::Serial.println(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction"));
+            FAULT_PRINTF(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction\r\n"));
         } else if (((_CFSR & (0x800)) >> 11) == 1) {
-            ::Serial.println(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception"));
+            FAULT_PRINTF(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception\r\n"));
         } else if (((_CFSR & (0x1000)) >> 12) == 1) {
-            ::Serial.println(PSTR("  (STKERR)      Bus Fault on stacking for exception entry"));
+            FAULT_PRINTF(PSTR("  (STKERR)      Bus Fault on stacking for exception entry\r\n"));
         } else if (((_CFSR & (0x2000)) >> 13) == 1) {
-            ::Serial.println(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation"));
+            FAULT_PRINTF(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation\r\n"));
         }
         if (((_CFSR & (0x8000)) >> 15) == 1) {
-            ::Serial.println(PSTR("  (BFARVALID)   Bus Fault Address Valid"));
+            FAULT_PRINTF(PSTR("  (BFARVALID)   Bus Fault Address Valid\r\n"));
         }
         /* Usuage Fault Status Register */
         if (((_CFSR & 0x10000) >> 16) == 1) {
-            ::Serial.println(PSTR("  (UNDEFINSTR)  Undefined instruction"));
+            FAULT_PRINTF(PSTR("  (UNDEFINSTR)  Undefined instruction\r\n"));
         } else if (((_CFSR & (0x20000)) >> 17) == 1) {
-            ::Serial.println(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)"));
+            FAULT_PRINTF(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)\r\n"));
         } else if (((_CFSR & (0x40000)) >> 18) == 1) {
-            ::Serial.println(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN"));
+            FAULT_PRINTF(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN\r\n"));
         } else if (((_CFSR & (0x80000)) >> 19) == 1) {
-            ::Serial.println(PSTR("  (NOCP)        No Coprocessor"));
+            FAULT_PRINTF(PSTR("  (NOCP)        No Coprocessor\r\n"));
         } else if (((_CFSR & (0x1000000)) >> 24) == 1) {
-            ::Serial.println(PSTR("  (UNALIGNED)   Unaligned access UsageFault"));
+            FAULT_PRINTF(PSTR("  (UNALIGNED)   Unaligned access UsageFault\r\n"));
         } else if (((_CFSR & (0x2000000)) >> 25) == 1) {
-            ::Serial.println(PSTR("  (DIVBYZERO)   Divide by zero"));
+            FAULT_PRINTF(PSTR("  (DIVBYZERO)   Divide by zero\r\n"));
         }
     }
 
     const auto _HFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED2C);
-    ::Serial.print(PSTR(" _HFSR:       0x"));
-    ::Serial.println(_HFSR, 16);
+    FAULT_PRINTF(PSTR(" _HFSR:       0x%x\r\n"), _HFSR);
     if (_HFSR > 0) {
         /* Memory Management Faults */
         if (((_HFSR & (0x02)) >> 1) == 1) {
-            ::Serial.println(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read"));
+            FAULT_PRINTF(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read\r\n"));
         } else if (((_HFSR & (0x40000000)) >> 30) == 1) {
-            ::Serial.println(PSTR("  (FORCED)      Forced Hard Fault"));
+            FAULT_PRINTF(PSTR("  (FORCED)      Forced Hard Fault\r\n"));
         } else if (((_HFSR & (0x80000000)) >> 31) == 31) {
-            ::Serial.println(PSTR("  (DEBUGEVT)    Reserved for Debug"));
+            FAULT_PRINTF(PSTR("  (DEBUGEVT)    Reserved for Debug\r\n"));
         }
     }
 
-    ::Serial.print(PSTR(" _DFSR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED30), 16);
-    ::Serial.print(PSTR(" _AFSR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED3C), 16);
-    ::Serial.print(PSTR(" _BFAR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED38), 16);
-    ::Serial.print(PSTR(" _MMAR:       0x"));
-    ::Serial.println(*reinterpret_cast<volatile unsigned int*>(0xE000ED34), 16);
-    ::Serial.flush();
+    FAULT_PRINTF(PSTR(" _DFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED30));
+    FAULT_PRINTF(PSTR(" _AFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED3C));
+    FAULT_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
+    FAULT_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
 
     freertos::error_blink(4);
 }

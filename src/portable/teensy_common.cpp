@@ -70,12 +70,16 @@ FLASHMEM void serial_puts(const char* str) {
     ::Serial.flush();
 }
 
+#ifdef PRINT_DEBUG_STUFF
+#define FAULT_PRINTF printf_debug
+#else
+#define FAULT_PRINTF ::Serial.printf
+#endif
+
 FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
-    ::Serial.print(PSTR("\t#"));
-    ::Serial.print(*p_depth);
-    ::Serial.print(PSTR(": pc at 0x"));
-    ::Serial.println(_Unwind_GetIP(ctx), 16);
+    FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
+    FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
     (*p_depth)++;
     return _URC_NO_REASON;
 }
@@ -88,22 +92,9 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
  * @param[in] expr: Expression that failed as C-string
  */
 FLASHMEM void assert_blink(const char* file, int line, const char* func, const char* expr) {
-    ::Serial.println();
-    ::Serial.print(PSTR("ASSERT in ["));
-    ::Serial.print(file);
-    ::Serial.print(':');
-    ::Serial.print(line, 10);
-    ::Serial.println(PSTR("]"));
-    ::Serial.print('\t');
-    ::Serial.print(func);
-    ::Serial.print(PSTR("(): "));
-    ::Serial.println(expr);
-    ::Serial.println();
-
-    ::Serial.println(PSTR("Stack trace:"));
-    int depth { 0 };
-    _Unwind_Backtrace(&trace_fcn, &depth);
-    ::Serial.flush();
+    FAULT_PRINTF(PSTR("\r\nASSERT in [%s:%u]\t"), file, line);
+    FAULT_PRINTF(PSTR("%s(): "), func);
+    FAULT_PRINTF(PSTR("%s\r\n"), expr);
 
     freertos::error_blink(1);
 }
@@ -116,6 +107,10 @@ FLASHMEM void mcu_shutdown() {
 
 namespace freertos {
 FLASHMEM void error_blink(const uint8_t n) {
+    FAULT_PRINTF(PSTR("Stack trace:\r\n"));
+    int depth { 0 };
+    _Unwind_Backtrace(&trace_fcn, &depth);
+  
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
     ::pinMode(debug_led_pin, OUTPUT);
@@ -241,31 +236,23 @@ void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
 }
 #endif // ! PLATFORMIO
 
-static UBaseType_t int_nesting {};
-static UBaseType_t int_prio {};
-
 void __malloc_lock(struct _reent*) {
-    configASSERT(!xPortIsInsideInterrupt()); // no mallocs inside ISRs
-    int_prio = ::ulPortRaiseBASEPRI();
-    ++int_nesting;
+    portENTER_CRITICAL();
 };
 
 void __malloc_unlock(struct _reent*) {
-    --int_nesting;
-    if (!int_nesting) {
-        ::vPortSetBASEPRI(int_prio);
-    }
+    portEXIT_CRITICAL();
 };
 
 // newlib also requires implementing locks for the application's environment memory space,
 // accessed by newlib's setenv() and getenv() functions.
 // As these are trivial functions, momentarily suspend task switching (rather than semaphore).
 void __env_lock() { // FIXME: check
-    ::vTaskSuspendAll();
+    portENTER_CRITICAL();
 };
 
 void __env_unlock() { // FIXME: check
-    ::xTaskResumeAll();
+    portEXIT_CRITICAL();
 };
 
 int _getpid() {
