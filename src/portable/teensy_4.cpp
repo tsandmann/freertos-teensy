@@ -191,6 +191,8 @@ void vPortSetupTimerInterrupt() {
         printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
     }
 
+    __disable_irq();
+
     /* stop and clear the SysTick */
     SYST_CSR = 0;
     SYST_CVR = 0;
@@ -233,17 +235,20 @@ void vApplicationTickHook() {
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int sp;
-    __asm__ volatile("mov %0, sp" : "=r"(sp)::);
+    __asm__ volatile("mov %0, r0" : "=r"(sp)::);
+
+    unsigned int lr;
+    __asm__ volatile("mov %0, r1" : "=r"(lr)::);
 
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
-
-    ::vTaskSuspendAll();
 
     ::Serial.print(PSTR("Fault IRQ:    0x"));
     ::Serial.println(addr & 0x1ff, 16);
     ::Serial.print(PSTR(" sp:          0x"));
     ::Serial.println(sp, 16);
+    ::Serial.print(PSTR(" lr:          0x"));
+    ::Serial.println(lr, 16);
     ::Serial.print(PSTR(" stacked_r0:  0x"));
     ::Serial.println(hardfault_args[0], 16);
     ::Serial.print(PSTR(" stacked_r1:  0x"));
@@ -302,7 +307,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
         if (((_CFSR & 0x10000) >> 16) == 1) {
             ::Serial.println(PSTR("  (UNDEFINSTR)  Undefined instruction"));
         } else if (((_CFSR & (0x20000)) >> 17) == 1) {
-            ::Serial.println(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)"));
+            ::Serial.println(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR"));
         } else if (((_CFSR & (0x40000)) >> 18) == 1) {
             ::Serial.println(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN"));
         } else if (((_CFSR & (0x80000)) >> 19) == 1) {
