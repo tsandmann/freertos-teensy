@@ -70,17 +70,46 @@ FLASHMEM void serial_puts(const char* str) {
     ::Serial.flush();
 }
 
+/* SCB Application Interrupt and Reset Control Register Definitions */
+#define SCB_AIRCR_VECTKEY_Pos 16U /*!< SCB AIRCR: VECTKEY Position */
+#define SCB_AIRCR_VECTKEY_Msk (0xFFFFUL << SCB_AIRCR_VECTKEY_Pos) /*!< SCB AIRCR: VECTKEY Mask */
+#define SCB_AIRCR_PRIGROUP_Pos 8U /*!< SCB AIRCR: PRIGROUP Position */
+#define SCB_AIRCR_PRIGROUP_Msk (7UL << SCB_AIRCR_PRIGROUP_Pos) /*!< SCB AIRCR: PRIGROUP Mask */
+
+/**
+  \brief        Set Priority Grouping
+  \details      Sets the priority grouping field using the required unlock sequence.
+                The parameter PriorityGroup is assigned to the field SCB->AIRCR [10:8] PRIGROUP field.
+                Only values from 0..7 are used.
+                In case of a conflict between priority grouping and available
+                priority bits (__NVIC_PRIO_BITS), the smallest possible priority group is set.
+  \param [in]   PriorityGroup  Priority grouping field.
+ */
+static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
+    uint32_t reg_value;
+    uint32_t PriorityGroupTmp = (PriorityGroup & (uint32_t) 0x07UL); /* only values 0..7 are used */
+
+    reg_value = SCB_AIRCR; /* read old register configuration */
+    reg_value &= ~((uint32_t)(SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); /* clear bits to change */
+    reg_value =
+        (reg_value | ((uint32_t) 0x5FAUL << SCB_AIRCR_VECTKEY_Pos) | (PriorityGroupTmp << SCB_AIRCR_PRIGROUP_Pos)); /* Insert write key and priority group */
+    SCB_AIRCR = reg_value;
+}
+
 #ifdef PRINT_DEBUG_STUFF
 #define FAULT_PRINTF printf_debug
 #else
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
-FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
+FLASHMEM static _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
     FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
     FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
     (*p_depth)++;
+    if (*p_depth == 32) {
+        return _URC_END_OF_STACK;
+    }
     return _URC_NO_REASON;
 }
 
@@ -162,6 +191,11 @@ void startup_late_hook() {
     if (DEBUG) {
         printf_debug(PSTR("startup_late_hook()\n"));
     }
+    __disable_irq();
+    __isb();
+    __NVIC_SetPriorityGrouping(0);
+    __isb();
+    __enable_irq();
     ::vTaskSuspendAll();
     if (DEBUG) {
         printf_debug(PSTR("startup_late_hook() done.\n"));

@@ -240,8 +240,6 @@ void vApplicationTickHook() {
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
-    __disable_irq();
-
     unsigned int sp;
     __asm__ volatile("mov %0, sp" : "=r"(sp)::);
 
@@ -250,6 +248,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
 
     FAULT_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
     FAULT_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
+    FAULT_PRINTF(PSTR(" lr:          0x%x\r\n"), lr);
     FAULT_PRINTF(PSTR(" stacked_r0:  0x%x\r\n"), hardfault_args[0]);
     FAULT_PRINTF(PSTR(" stacked_r1:  0x%x\r\n"), hardfault_args[1]);
     FAULT_PRINTF(PSTR(" stacked_r2:  0x%x\r\n"), hardfault_args[2]);
@@ -299,7 +298,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
         if (((_CFSR & 0x10000) >> 16) == 1) {
             FAULT_PRINTF(PSTR("  (UNDEFINSTR)  Undefined instruction\r\n"));
         } else if (((_CFSR & (0x20000)) >> 17) == 1) {
-            FAULT_PRINTF(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR)\r\n"));
+            FAULT_PRINTF(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR\r\n"));
         } else if (((_CFSR & (0x40000)) >> 18) == 1) {
             FAULT_PRINTF(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN\r\n"));
         } else if (((_CFSR & (0x80000)) >> 19) == 1) {
