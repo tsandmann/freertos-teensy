@@ -54,7 +54,7 @@ extern "C" {
 #define configTICK_RATE_HZ                          ( (TickType_t) 1000 )
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION     1
 #define configMAX_PRIORITIES                        ( 10 )
-#define configMINIMAL_STACK_SIZE                    ( ( unsigned short ) 90 )
+#define configMINIMAL_STACK_SIZE                    ( ( unsigned short ) 128 )
 #define configMAX_TASK_NAME_LEN                     ( 10 )
 #define configUSE_16_BIT_TICKS                      0
 #define configIDLE_SHOULD_YIELD                     1
@@ -104,7 +104,9 @@ extern "C" {
 #define configUSE_TIMERS                            1
 #define configTIMER_TASK_PRIORITY                   ( configMAX_PRIORITIES - 1 )
 #define configTIMER_QUEUE_LENGTH                    10
+#ifndef configTIMER_TASK_STACK_DEPTH
 #define configTIMER_TASK_STACK_DEPTH                ( 1536U / 4U )
+#endif
 #define configIDLE_TASK_NAME                        "IDLE"
 
 /* Define to trap errors during development. */
@@ -114,6 +116,7 @@ extern "C" {
 #define printf_debug(...)
 #define ASSERT_LOG(...)
 #else
+#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   1
 #ifdef __cplusplus
 extern "C" {
 #endif

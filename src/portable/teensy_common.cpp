@@ -96,12 +96,16 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
     SCB_AIRCR = reg_value;
 }
 
+#ifdef PRINT_DEBUG_STUFF
+#define FAULT_PRINTF printf_debug
+#else
+#define FAULT_PRINTF ::Serial.printf
+#endif
+
 FLASHMEM static _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
-    ::Serial.print(PSTR("\t#"));
-    ::Serial.print(*p_depth);
-    ::Serial.print(PSTR(": pc at 0x"));
-    ::Serial.println(_Unwind_GetIP(ctx), 16);
+    FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
+    FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
     (*p_depth)++;
     if (*p_depth == 32) {
         return _URC_END_OF_STACK;
@@ -117,22 +121,9 @@ FLASHMEM static _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth)
  * @param[in] expr: Expression that failed as C-string
  */
 FLASHMEM void assert_blink(const char* file, int line, const char* func, const char* expr) {
-    ::Serial.println();
-    ::Serial.print(PSTR("ASSERT in ["));
-    ::Serial.print(file);
-    ::Serial.print(':');
-    ::Serial.print(line, 10);
-    ::Serial.println(PSTR("]"));
-    ::Serial.print('\t');
-    ::Serial.print(func);
-    ::Serial.print(PSTR("(): "));
-    ::Serial.println(expr);
-    ::Serial.println();
-
-    ::Serial.println(PSTR("Stack trace:"));
-    int depth { 0 };
-    _Unwind_Backtrace(&trace_fcn, &depth);
-    ::Serial.flush();
+    FAULT_PRINTF(PSTR("\r\nASSERT in [%s:%u]\t"), file, line);
+    FAULT_PRINTF(PSTR("%s(): "), func);
+    FAULT_PRINTF(PSTR("%s\r\n"), expr);
 
     freertos::error_blink(1);
 }
@@ -145,6 +136,10 @@ FLASHMEM void mcu_shutdown() {
 
 namespace freertos {
 FLASHMEM void error_blink(const uint8_t n) {
+    FAULT_PRINTF(PSTR("Stack trace:\r\n"));
+    int depth { 0 };
+    _Unwind_Backtrace(&trace_fcn, &depth);
+  
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
     ::pinMode(debug_led_pin, OUTPUT);
