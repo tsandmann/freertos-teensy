@@ -102,7 +102,7 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
-FLASHMEM static _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
+FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
     if (*p_depth == 0) {
         _Unwind_SetGR(ctx, 14, _Unwind_GetRegionStart(ctx));

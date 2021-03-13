@@ -27,6 +27,7 @@
 #include <cstring>
 #include <malloc.h>
 #include <tuple>
+#include <unwind.h>
 
 #include "teensy.h"
 #include "event_responder_support.h"
@@ -190,7 +191,7 @@ void vPortSetupTimerInterrupt() {
     if (DEBUG) {
         printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
     }
-    
+
     __disable_irq();
 
     /* stop and clear the SysTick */
@@ -238,13 +239,30 @@ void vApplicationTickHook() {
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
+/// This struct definition mimics the internal structures of libgcc in
+/// arm-none-eabi binary. It's not portable and might break in the future.
+struct core_regs {
+    unsigned r[16];
+};
+
+/// This struct definition mimics the internal structures of libgcc in
+/// arm-none-eabi binary. It's not portable and might break in the future.
+typedef struct {
+    unsigned demand_save_flags;
+    struct core_regs core;
+} phase2_vrs;
+
 TaskHandle_t pxGetTaskFromStack(TaskHandle_t, StackType_t*);
+_Unwind_Reason_Code trace_fcn(_Unwind_Context*, void*);
 _Unwind_Reason_Code __gnu_Unwind_Backtrace(_Unwind_Trace_Fn, void*, phase2_vrs*);
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int sp;
     __asm__ volatile("mov %0, sp" : "=r"(sp)::);
+
+    unsigned int lr;
+    __asm__ volatile("mov %0, r0" : "=r"(lr)::);
 
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
