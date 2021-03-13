@@ -102,8 +102,11 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
-FLASHMEM static _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
+FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
+    if (*p_depth == 0) {
+        _Unwind_SetGR(ctx, 14, _Unwind_GetRegionStart(ctx));
+    }
     FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
     FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
     (*p_depth)++;
@@ -125,6 +128,13 @@ FLASHMEM void assert_blink(const char* file, int line, const char* func, const c
     FAULT_PRINTF(PSTR("%s(): "), func);
     FAULT_PRINTF(PSTR("%s\r\n"), expr);
 
+    FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    __disable_irq();
+    __isb();
+    int depth {};
+    _Unwind_Backtrace(&trace_fcn, &depth);
+    __enable_irq();
+
     freertos::error_blink(1);
 }
 
@@ -136,10 +146,6 @@ FLASHMEM void mcu_shutdown() {
 
 namespace freertos {
 FLASHMEM void error_blink(const uint8_t n) {
-    FAULT_PRINTF(PSTR("Stack trace:\r\n"));
-    int depth { 0 };
-    _Unwind_Backtrace(&trace_fcn, &depth);
-  
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
     ::pinMode(debug_led_pin, OUTPUT);
@@ -194,6 +200,9 @@ void startup_late_hook() {
     __disable_irq();
     __isb();
     __NVIC_SetPriorityGrouping(0);
+#ifdef USB_IRQ_PRIO
+    NVIC_SET_PRIORITY(IRQ_USB1, USB_IRQ_PRIO);
+#endif
     __isb();
     __enable_irq();
     ::vTaskSuspendAll();
