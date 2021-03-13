@@ -238,6 +238,9 @@ void vApplicationTickHook() {
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
+TaskHandle_t pxGetTaskFromStack(TaskHandle_t, StackType_t*);
+_Unwind_Reason_Code __gnu_Unwind_Backtrace(_Unwind_Trace_Fn, void*, phase2_vrs*);
+
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int sp;
@@ -327,6 +330,26 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     FAULT_PRINTF(PSTR(" _AFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED3C));
     FAULT_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
     FAULT_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
+
+    auto p_active_task { pxGetTaskFromStack(nullptr, reinterpret_cast<StackType_t*>(sp)) };
+    FAULT_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
+    FAULT_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unkown"));
+
+    FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    phase2_vrs pre_signal_state = {};
+    pre_signal_state.demand_save_flags = 0;
+    pre_signal_state.core.r[0] = hardfault_args[0];
+    pre_signal_state.core.r[1] = hardfault_args[1];
+    pre_signal_state.core.r[2] = hardfault_args[2];
+    pre_signal_state.core.r[3] = hardfault_args[3];
+    pre_signal_state.core.r[12] = hardfault_args[4];
+    pre_signal_state.core.r[11] = (uint32_t) __builtin_frame_address(0);
+    pre_signal_state.core.r[14] = hardfault_args[6];
+    pre_signal_state.core.r[15] = 0;
+    pre_signal_state.core.r[13] = sp;
+
+    int depth {};
+    __gnu_Unwind_Backtrace(trace_fcn, &depth, &pre_signal_state);
 
     freertos::error_blink(4);
 }

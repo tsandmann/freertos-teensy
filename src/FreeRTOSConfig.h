@@ -72,7 +72,7 @@ extern "C" {
 #define configUSE_APPLICATION_TASK_TAG              0
 
 /* Tasks.c additions (e.g. Thread Aware Debug capability) */
-#define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H   0
+#define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H   1
 
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION             1
@@ -109,6 +109,8 @@ extern "C" {
 #endif
 #define configIDLE_TASK_NAME                        "IDLE"
 
+#define USB_IRQ_PRIO                                16
+
 /* Define to trap errors during development. */
 #ifdef NDEBUG
 #define configASSERT(condition) ((void) 0)
@@ -116,7 +118,7 @@ extern "C" {
 #define printf_debug(...)
 #define ASSERT_LOG(...)
 #else
-#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   1
+#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0
 #ifdef __cplusplus
 extern "C" {
 #endif
