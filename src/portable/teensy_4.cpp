@@ -351,9 +351,10 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
 
     auto p_active_task { pxGetTaskFromStack(nullptr, reinterpret_cast<StackType_t*>(sp)) };
     FAULT_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
-    FAULT_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unkown"));
+    FAULT_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
 
     FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    extern uint32_t g_trace_lr;
     phase2_vrs pre_signal_state = {};
     pre_signal_state.demand_save_flags = 0;
     pre_signal_state.core.r[0] = hardfault_args[0];
@@ -365,9 +366,11 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     pre_signal_state.core.r[14] = hardfault_args[6];
     pre_signal_state.core.r[15] = 0;
     pre_signal_state.core.r[13] = sp;
+    g_trace_lr = hardfault_args[5];
 
     int depth {};
     __gnu_Unwind_Backtrace(trace_fcn, &depth, &pre_signal_state);
+    FAULT_PRINTF(PSTR("\n"));
 
     freertos::error_blink(4);
 }
