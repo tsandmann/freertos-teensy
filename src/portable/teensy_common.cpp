@@ -103,19 +103,29 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
 #endif
 
 uint32_t g_trace_lr;
+void prvTaskExitError();
 
 FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
+
+    const auto ip { _Unwind_GetIP(ctx) };
     FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
-    FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
-    (*p_depth)++;
+    FAULT_PRINTF(PSTR(": 0x%04x\r\n"), ip);
+
+    if (ip == (reinterpret_cast<uintptr_t>(&prvTaskExitError) & ~1) || ip == 0) {
+        return _URC_END_OF_STACK;
+    }
+
     if (g_trace_lr) {
         _Unwind_SetGR(ctx, 14, g_trace_lr);
         g_trace_lr = 0;
     }
+
+    ++(*p_depth);
     if (*p_depth == 32) {
         return _URC_END_OF_STACK;
     }
+
     return _URC_NO_REASON;
 }
 
@@ -137,6 +147,7 @@ FLASHMEM void assert_blink(const char* file, int line, const char* func, const c
     int depth {};
     _Unwind_Backtrace(&trace_fcn, &depth);
     __enable_irq();
+    FAULT_PRINTF(PSTR("\r\n"));
 
     freertos::error_blink(1);
 }
