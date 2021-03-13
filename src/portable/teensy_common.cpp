@@ -102,14 +102,17 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
 #define FAULT_PRINTF ::Serial.printf
 #endif
 
+uint32_t g_trace_lr;
+
 FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
-    if (*p_depth == 0) {
-        _Unwind_SetGR(ctx, 14, _Unwind_GetRegionStart(ctx));
-    }
     FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
     FAULT_PRINTF(PSTR(": 0x%04x\r\n"), _Unwind_GetIP(ctx));
     (*p_depth)++;
+    if (g_trace_lr) {
+        _Unwind_SetGR(ctx, 14, g_trace_lr);
+        g_trace_lr = 0;
+    }
     if (*p_depth == 32) {
         return _URC_END_OF_STACK;
     }
