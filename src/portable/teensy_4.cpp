@@ -259,10 +259,10 @@ _Unwind_Reason_Code __gnu_Unwind_Backtrace(_Unwind_Trace_Fn, void*, phase2_vrs*)
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int sp;
-    __asm__ volatile("mov %0, sp" : "=r"(sp)::);
+    __asm__ volatile("mov %0, r0" : "=r"(sp)::);
 
     unsigned int lr;
-    __asm__ volatile("mov %0, r0" : "=r"(lr)::);
+    __asm__ volatile("mov %0, r1" : "=r"(lr)::);
 
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
@@ -362,10 +362,10 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     pre_signal_state.core.r[2] = hardfault_args[2];
     pre_signal_state.core.r[3] = hardfault_args[3];
     pre_signal_state.core.r[12] = hardfault_args[4];
-    pre_signal_state.core.r[11] = (uint32_t) __builtin_frame_address(0);
+    pre_signal_state.core.r[11] = 0;
     pre_signal_state.core.r[14] = hardfault_args[6];
     pre_signal_state.core.r[15] = 0;
-    pre_signal_state.core.r[13] = sp;
+    pre_signal_state.core.r[13] = sp + 8 * sizeof(unsigned int);
     g_trace_lr = hardfault_args[5];
 
     int depth {};
