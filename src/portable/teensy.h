@@ -31,7 +31,7 @@
 
 
 namespace std {
-template<class... Types>
+template <class... Types>
 class tuple;
 }
 
@@ -51,6 +51,8 @@ void serial_puts(const char* str);
  * @param[in] expr: Expression that failed as C-string
  */
 void assert_blink(const char* file, int line, const char* func, const char* expr) __attribute__((noreturn));
+
+void mcu_shutdown() __attribute__((noreturn, used));
 } // extern C
 
 namespace freertos {
@@ -68,8 +70,6 @@ void delay_ms(const uint32_t ms);
  * @param[in] n: Number of short LED pulses to encode the error
  */
 void error_blink(const uint8_t n) __attribute__((noreturn));
-
-void mcu_shutdown();
 
 /**
  * @brief Get amount of used and free RAM1

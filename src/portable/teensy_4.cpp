@@ -131,7 +131,6 @@ FLASHMEM void delay_ms(const uint32_t ms) { // FIXME: check time, should be ~10 
     const uint32_t cycles_ms { static_cast<uint32_t>((1ULL << 32) * 1'000'000ULL / 2'100ULL / static_cast<uint64_t>(scale_cpu_cycles_to_microseconds)) };
     const uint32_t n { ms / 10 };
     for (uint32_t i {}; i < n; ++i) {
-        // FIXME: poll USB?
         for (uint32_t i {}; i < 10UL * cycles_ms; ++i) {
             __asm volatile("nop");
         }
@@ -141,7 +140,7 @@ FLASHMEM void delay_ms(const uint32_t ms) { // FIXME: check time, should be ~10 
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
-    __asm volatile("isb" ::: "memory");
+    __isb();
 }
 
 FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
@@ -171,7 +170,7 @@ FASTRUN uint64_t get_us() {
         scc = systick_cycle_count;
     } while (__STREXW(1, &systick_safe_read));
     const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    __asm volatile("dmb" ::: "memory");
+    __dmb();
     const uint32_t ccdelta { cyccnt - scc };
     uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
     if (frac > 1'000) {
@@ -252,9 +251,14 @@ typedef struct {
     struct core_regs core;
 } phase2_vrs;
 
-TaskHandle_t pxGetTaskFromStack(TaskHandle_t, StackType_t*);
+TaskHandle_t pxGetTaskFromStack(StackType_t*);
 _Unwind_Reason_Code trace_fcn(_Unwind_Context*, void*);
 _Unwind_Reason_Code __gnu_Unwind_Backtrace(_Unwind_Trace_Fn, void*, phase2_vrs*);
+
+void mcu_hardfault() FLASHMEM __attribute__((noreturn, used));
+void mcu_hardfault() {
+    freertos::error_blink(4);
+}
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
@@ -265,7 +269,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     __asm__ volatile("mov %0, r1" : "=r"(lr)::);
 
     unsigned int addr;
-    __asm__ volatile("mrs %0, ipsr\n" : "=r"(addr)::);
+    __asm__ volatile("mrs %0, ipsr" : "=r"(addr)::);
 
     FAULT_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
     FAULT_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
@@ -302,7 +306,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
         if (((_CFSR & 0x100) >> 8) == 1) {
             FAULT_PRINTF(PSTR("  (IBUSERR)     Instruction Bus Error\r\n"));
         } else if (((_CFSR & (0x200)) >> 9) == 1) {
-            FAULT_PRINTF(PSTR("  (PRECISERR)   Data bus error(address in BFAR)\r\n"));
+            FAULT_PRINTF(PSTR("  (PRECISERR)   Data bus error (address in BFAR)\r\n"));
         } else if (((_CFSR & (0x400)) >> 10) == 1) {
             FAULT_PRINTF(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction\r\n"));
         } else if (((_CFSR & (0x800)) >> 11) == 1) {
@@ -349,7 +353,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     FAULT_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
     FAULT_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
 
-    auto p_active_task { pxGetTaskFromStack(nullptr, reinterpret_cast<StackType_t*>(sp)) };
+    auto p_active_task { pxGetTaskFromStack(reinterpret_cast<StackType_t*>(sp)) };
     FAULT_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
     FAULT_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
 
@@ -372,7 +376,10 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     __gnu_Unwind_Backtrace(trace_fcn, &depth, &pre_signal_state);
     FAULT_PRINTF(PSTR("\n"));
 
-    freertos::error_blink(4);
+    hardfault_args[6] = reinterpret_cast<uintptr_t>(&mcu_hardfault);
+    __dsb();
+    __isb();
+    portDISABLE_INTERRUPTS();
 }
 } // extern C
 #endif // ARDUINO_TEENSY40 || ARDUINO_TEENSY41
