@@ -138,7 +138,7 @@ static void vPortEnableVFP( void ) portDONT_DISCARD __attribute__ ( ( naked, sec
 /*
  * Used to catch tasks that attempt to return from their implementing function.
  */
-static void prvTaskExitError( void ) __attribute__ (( section( ".flashmem" ) ));
+void prvTaskExitError( void ) __attribute__ (( section( ".flashmem" ) ));
 
 /*-----------------------------------------------------------*/
 
@@ -217,7 +217,7 @@ StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
 }
 /*-----------------------------------------------------------*/
 
-static void prvTaskExitError( void )
+void prvTaskExitError( void )
 {
 volatile uint32_t ulDummy = 0;
 
