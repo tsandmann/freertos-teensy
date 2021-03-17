@@ -143,7 +143,7 @@ FLASHMEM void assert_blink(const char* file, int line, const char* func, const c
 
     FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
     __disable_irq();
-    __isb();
+    portINSTR_SYNC_BARRIER();
     int depth {};
     _Unwind_Backtrace(&trace_fcn, &depth);
     __enable_irq();
@@ -212,12 +212,12 @@ void startup_late_hook() {
         printf_debug(PSTR("startup_late_hook()\n"));
     }
     __disable_irq();
-    __isb();
+    portINSTR_SYNC_BARRIER();
     __NVIC_SetPriorityGrouping(0);
 #ifdef USB_IRQ_PRIO
     NVIC_SET_PRIORITY(IRQ_USB1, USB_IRQ_PRIO);
 #endif
-    __isb();
+    portINSTR_SYNC_BARRIER();
     __enable_irq();
     ::vTaskSuspendAll();
     if (DEBUG) {

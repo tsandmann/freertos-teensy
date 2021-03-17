@@ -555,8 +555,8 @@ void xPortSysTickHandler( void )
 		/* Enter a critical section but don't use the taskENTER_CRITICAL()
          * method as that will mask interrupts that should exit sleep mode. */
         __asm volatile ( "cpsid i" ::: "memory" );
-        __asm volatile ( "dsb" );
-        __asm volatile ( "isb" );
+        portDATA_SYNC_BARRIER();
+        portINSTR_SYNC_BARRIER();
 
 		/* If a context switch is pending or a task is waiting for the scheduler
          * to be unsuspended then abandon the low power entry. */
@@ -599,9 +599,9 @@ void xPortSysTickHandler( void )
 
 			if( xModifiableIdleTime > 0 )
 			{
-                __asm volatile ( "dsb" ::: "memory" );
+                portDATA_SYNC_BARRIER();
                 __asm volatile ( "wfi" );
-                __asm volatile ( "isb" );
+                portINSTR_SYNC_BARRIER();
 			}
 
 			configPOST_SLEEP_PROCESSING( xExpectedIdleTime );
@@ -610,16 +610,16 @@ void xPortSysTickHandler( void )
              * out of sleep mode to execute immediately.  see comments above
              * __disable_interrupt() call above. */
             __asm volatile ( "cpsie i" ::: "memory" );
-            __asm volatile ( "dsb" );
-            __asm volatile ( "isb" );
+            portDATA_SYNC_BARRIER();
+            portINSTR_SYNC_BARRIER();
 
 			/* Disable interrupts again because the clock is about to be stopped
              * and interrupts that execute while the clock is stopped will increase
              * any slippage between the time maintained by the RTOS and calendar
              * time. */
             __asm volatile ( "cpsid i" ::: "memory" );
-            __asm volatile ( "dsb" );
-            __asm volatile ( "isb" );
+            portDATA_SYNC_BARRIER();
+            portINSTR_SYNC_BARRIER();
 
 			/* Disable the SysTick clock without reading the
              * portNVIC_SYSTICK_CTRL_REG register to ensure the
