@@ -140,7 +140,7 @@ FLASHMEM void delay_ms(const uint32_t ms) {
     for (uint32_t i {}; i < iterations; ++i) {
         __asm volatile("nop");
     }
-    __isb();
+    portINSTR_SYNC_BARRIER();
 }
 
 FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
@@ -170,7 +170,7 @@ FASTRUN uint64_t get_us() {
         scc = systick_cycle_count;
     } while (__STREXW(1, &systick_safe_read));
     const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    __dmb();
+    portMEMORY_BARRIER();
     const uint32_t ccdelta { cyccnt - scc };
     uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
     if (frac > 1'000) {
@@ -377,8 +377,8 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     FAULT_PRINTF(PSTR("\n"));
 
     hardfault_args[6] = reinterpret_cast<uintptr_t>(&mcu_hardfault);
-    __dsb();
-    __isb();
+    portDATA_SYNC_BARRIER();
+    portINSTR_SYNC_BARRIER();
     portDISABLE_INTERRUPTS();
 }
 } // extern C

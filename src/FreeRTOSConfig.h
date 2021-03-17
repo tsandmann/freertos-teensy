@@ -113,12 +113,13 @@ extern "C" {
 
 /* Define to trap errors during development. */
 #ifdef NDEBUG
+#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0
 #define configASSERT(condition) ((void) 0)
 #define putchar_debug(...)
 #define printf_debug(...)
 #define ASSERT_LOG(...)
 #else
-#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0
+#define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   1
 #ifdef __cplusplus
 extern "C" {
 #endif

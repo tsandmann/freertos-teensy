@@ -259,6 +259,14 @@
     #define portMEMORY_BARRIER()
 #endif
 
+#ifndef portDATA_SYNC_BARRIER
+    #define portDATA_SYNC_BARRIER()
+#endif
+
+#ifndef portINSTR_SYNC_BARRIER
+    #define portINSTR_SYNC_BARRIER()
+#endif
+
 #ifndef portSOFTWARE_BARRIER
     #define portSOFTWARE_BARRIER()
 #endif
