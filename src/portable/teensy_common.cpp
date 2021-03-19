@@ -214,7 +214,7 @@ void startup_late_hook() {
     __disable_irq();
     portINSTR_SYNC_BARRIER();
     __NVIC_SetPriorityGrouping(0);
-#ifdef USB_IRQ_PRIO
+#if defined USB_IRQ_PRIO && (defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41)
     NVIC_SET_PRIORITY(IRQ_USB1, USB_IRQ_PRIO);
 #endif
     portINSTR_SYNC_BARRIER();
