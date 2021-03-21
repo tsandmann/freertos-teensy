@@ -109,11 +109,15 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     int* p_depth { static_cast<int*>(depth) };
 
     const auto ip { _Unwind_GetIP(ctx) };
+    const auto start { _Unwind_GetRegionStart(ctx) };
     FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
-    FAULT_PRINTF(PSTR(": 0x%04x\r\n"), ip);
+    FAULT_PRINTF(PSTR(":\t%04x"), ip);
 
     if (ip == (reinterpret_cast<uintptr_t>(&prvTaskExitError) & ~1) || ip == 0) {
+        FAULT_PRINTF(PSTR(" [entry]\r\n"));
         return _URC_END_OF_STACK;
+    } else {
+        FAULT_PRINTF(PSTR(" [%04x]\r\n"), start);
     }
 
     if (g_trace_lr) {
