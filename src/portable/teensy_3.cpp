@@ -192,7 +192,7 @@ void vPortSetupTimerInterrupt() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
-        ::serial_puts(PSTR("vPortSetupTimerInterrupt()\n"));
+        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt()\r\n"));
     }
 
     /* stop and clear the SysTick */
@@ -222,7 +222,7 @@ void vPortSetupTimerInterrupt() {
     ::xTaskResumeAll();
 
     if (DEBUG) {
-        ::serial_puts(PSTR("vPortSetupTimerInterrupt() done.\n"));
+        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
     }
 }
 
