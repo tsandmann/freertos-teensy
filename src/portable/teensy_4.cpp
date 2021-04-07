@@ -232,12 +232,6 @@ void vApplicationTickHook() {
 }
 #endif // configUSE_TICK_HOOK
 
-#ifdef PRINT_DEBUG_STUFF
-#define FAULT_PRINTF printf_debug
-#else
-#define FAULT_PRINTF ::Serial.printf
-#endif
-
 /// This struct definition mimics the internal structures of libgcc in
 /// arm-none-eabi binary. It's not portable and might break in the future.
 struct core_regs {
@@ -271,93 +265,93 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr" : "=r"(addr)::);
 
-    FAULT_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
-    FAULT_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
-    FAULT_PRINTF(PSTR(" lr:          0x%x\r\n"), lr);
-    FAULT_PRINTF(PSTR(" stacked_r0:  0x%x\r\n"), hardfault_args[0]);
-    FAULT_PRINTF(PSTR(" stacked_r1:  0x%x\r\n"), hardfault_args[1]);
-    FAULT_PRINTF(PSTR(" stacked_r2:  0x%x\r\n"), hardfault_args[2]);
-    FAULT_PRINTF(PSTR(" stacked_r3:  0x%x\r\n"), hardfault_args[3]);
-    FAULT_PRINTF(PSTR(" stacked_r12: 0x%x\r\n"), hardfault_args[4]);
-    FAULT_PRINTF(PSTR(" stacked_lr:  0x%x\r\n"), hardfault_args[5]);
-    FAULT_PRINTF(PSTR(" stacked_pc:  0x%x\r\n"), hardfault_args[6]);
-    FAULT_PRINTF(PSTR(" stacked_psr: 0x%x\r\n"), hardfault_args[7]);
+    EXC_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
+    EXC_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
+    EXC_PRINTF(PSTR(" lr:          0x%x\r\n"), lr);
+    EXC_PRINTF(PSTR(" stacked_r0:  0x%x\r\n"), hardfault_args[0]);
+    EXC_PRINTF(PSTR(" stacked_r1:  0x%x\r\n"), hardfault_args[1]);
+    EXC_PRINTF(PSTR(" stacked_r2:  0x%x\r\n"), hardfault_args[2]);
+    EXC_PRINTF(PSTR(" stacked_r3:  0x%x\r\n"), hardfault_args[3]);
+    EXC_PRINTF(PSTR(" stacked_r12: 0x%x\r\n"), hardfault_args[4]);
+    EXC_PRINTF(PSTR(" stacked_lr:  0x%x\r\n"), hardfault_args[5]);
+    EXC_PRINTF(PSTR(" stacked_pc:  0x%x\r\n"), hardfault_args[6]);
+    EXC_PRINTF(PSTR(" stacked_psr: 0x%x\r\n"), hardfault_args[7]);
 
     const auto _CFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED28);
-    FAULT_PRINTF(PSTR(" _CFSR:       0x%x\r\n"), _CFSR);
+    EXC_PRINTF(PSTR(" _CFSR:       0x%x\r\n"), _CFSR);
 
     if (_CFSR > 0) {
         /* Memory Management Faults */
         if ((_CFSR & 1) == 1) {
-            FAULT_PRINTF(PSTR("  (IACCVIOL)    Instruction Access Violation\r\n"));
+            EXC_PRINTF(PSTR("  (IACCVIOL)    Instruction Access Violation\r\n"));
         } else if (((_CFSR & (0x02)) >> 1) == 1) {
-            FAULT_PRINTF(PSTR("  (DACCVIOL)    Data Access Violation\r\n"));
+            EXC_PRINTF(PSTR("  (DACCVIOL)    Data Access Violation\r\n"));
         } else if (((_CFSR & (0x08)) >> 3) == 1) {
-            FAULT_PRINTF(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking\r\n"));
+            EXC_PRINTF(PSTR("  (MUNSTKERR)   MemMange Fault on Unstacking\r\n"));
         } else if (((_CFSR & (0x10)) >> 4) == 1) {
-            FAULT_PRINTF(PSTR("  (MSTKERR)     MemMange Fault on stacking\r\n"));
+            EXC_PRINTF(PSTR("  (MSTKERR)     MemMange Fault on stacking\r\n"));
         } else if (((_CFSR & (0x20)) >> 5) == 1) {
-            FAULT_PRINTF(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State\r\n"));
+            EXC_PRINTF(PSTR("  (MLSPERR)     MemMange Fault on FP Lazy State\r\n"));
         }
         if (((_CFSR & (0x80)) >> 7) == 1) {
-            FAULT_PRINTF(PSTR("  (MMARVALID)   MemMange Fault Address Valid\r\n"));
+            EXC_PRINTF(PSTR("  (MMARVALID)   MemMange Fault Address Valid\r\n"));
         }
         /* Bus Fault Status Register */
         if (((_CFSR & 0x100) >> 8) == 1) {
-            FAULT_PRINTF(PSTR("  (IBUSERR)     Instruction Bus Error\r\n"));
+            EXC_PRINTF(PSTR("  (IBUSERR)     Instruction Bus Error\r\n"));
         } else if (((_CFSR & (0x200)) >> 9) == 1) {
-            FAULT_PRINTF(PSTR("  (PRECISERR)   Data bus error (address in BFAR)\r\n"));
+            EXC_PRINTF(PSTR("  (PRECISERR)   Data bus error (address in BFAR)\r\n"));
         } else if (((_CFSR & (0x400)) >> 10) == 1) {
-            FAULT_PRINTF(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction\r\n"));
+            EXC_PRINTF(PSTR("  (IMPRECISERR) Data bus error but address not related to instruction\r\n"));
         } else if (((_CFSR & (0x800)) >> 11) == 1) {
-            FAULT_PRINTF(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception\r\n"));
+            EXC_PRINTF(PSTR("  (UNSTKERR)    Bus Fault on unstacking for a return from exception\r\n"));
         } else if (((_CFSR & (0x1000)) >> 12) == 1) {
-            FAULT_PRINTF(PSTR("  (STKERR)      Bus Fault on stacking for exception entry\r\n"));
+            EXC_PRINTF(PSTR("  (STKERR)      Bus Fault on stacking for exception entry\r\n"));
         } else if (((_CFSR & (0x2000)) >> 13) == 1) {
-            FAULT_PRINTF(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation\r\n"));
+            EXC_PRINTF(PSTR("  (LSPERR)      Bus Fault on FP lazy state preservation\r\n"));
         }
         if (((_CFSR & (0x8000)) >> 15) == 1) {
-            FAULT_PRINTF(PSTR("  (BFARVALID)   Bus Fault Address Valid\r\n"));
+            EXC_PRINTF(PSTR("  (BFARVALID)   Bus Fault Address Valid\r\n"));
         }
         /* Usuage Fault Status Register */
         if (((_CFSR & 0x10000) >> 16) == 1) {
-            FAULT_PRINTF(PSTR("  (UNDEFINSTR)  Undefined instruction\r\n"));
+            EXC_PRINTF(PSTR("  (UNDEFINSTR)  Undefined instruction\r\n"));
         } else if (((_CFSR & (0x20000)) >> 17) == 1) {
-            FAULT_PRINTF(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR\r\n"));
+            EXC_PRINTF(PSTR("  (INVSTATE)    Instruction makes illegal use of EPSR\r\n"));
         } else if (((_CFSR & (0x40000)) >> 18) == 1) {
-            FAULT_PRINTF(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN\r\n"));
+            EXC_PRINTF(PSTR("  (INVPC)       Usage fault: invalid EXC_RETURN\r\n"));
         } else if (((_CFSR & (0x80000)) >> 19) == 1) {
-            FAULT_PRINTF(PSTR("  (NOCP)        No Coprocessor\r\n"));
+            EXC_PRINTF(PSTR("  (NOCP)        No Coprocessor\r\n"));
         } else if (((_CFSR & (0x1000000)) >> 24) == 1) {
-            FAULT_PRINTF(PSTR("  (UNALIGNED)   Unaligned access UsageFault\r\n"));
+            EXC_PRINTF(PSTR("  (UNALIGNED)   Unaligned access UsageFault\r\n"));
         } else if (((_CFSR & (0x2000000)) >> 25) == 1) {
-            FAULT_PRINTF(PSTR("  (DIVBYZERO)   Divide by zero\r\n"));
+            EXC_PRINTF(PSTR("  (DIVBYZERO)   Divide by zero\r\n"));
         }
     }
 
     const auto _HFSR = *reinterpret_cast<volatile unsigned int*>(0xE000ED2C);
-    FAULT_PRINTF(PSTR(" _HFSR:       0x%x\r\n"), _HFSR);
+    EXC_PRINTF(PSTR(" _HFSR:       0x%x\r\n"), _HFSR);
     if (_HFSR > 0) {
         /* Memory Management Faults */
         if (((_HFSR & (0x02)) >> 1) == 1) {
-            FAULT_PRINTF(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read\r\n"));
+            EXC_PRINTF(PSTR("  (VECTTBL)     Bus Fault on Vec Table Read\r\n"));
         } else if (((_HFSR & (0x40000000)) >> 30) == 1) {
-            FAULT_PRINTF(PSTR("  (FORCED)      Forced Hard Fault\r\n"));
+            EXC_PRINTF(PSTR("  (FORCED)      Forced Hard Fault\r\n"));
         } else if (((_HFSR & (0x80000000)) >> 31) == 31) {
-            FAULT_PRINTF(PSTR("  (DEBUGEVT)    Reserved for Debug\r\n"));
+            EXC_PRINTF(PSTR("  (DEBUGEVT)    Reserved for Debug\r\n"));
         }
     }
 
-    FAULT_PRINTF(PSTR(" _DFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED30));
-    FAULT_PRINTF(PSTR(" _AFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED3C));
-    FAULT_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
-    FAULT_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
+    EXC_PRINTF(PSTR(" _DFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED30));
+    EXC_PRINTF(PSTR(" _AFSR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED3C));
+    EXC_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
+    EXC_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
 
     auto p_active_task { pxGetTaskFromStack(reinterpret_cast<StackType_t*>(sp)) };
-    FAULT_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
-    FAULT_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
+    EXC_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
+    EXC_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
 
-    FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
     extern uint32_t g_trace_lr;
     phase2_vrs pre_signal_state = {};
     pre_signal_state.demand_save_flags = 0;
@@ -374,7 +368,8 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
 
     int depth {};
     __gnu_Unwind_Backtrace(trace_fcn, &depth, &pre_signal_state);
-    FAULT_PRINTF(PSTR("\n"));
+    EXC_PRINTF(PSTR("\n"));
+    EXC_FLUSH();
 
     hardfault_args[6] = reinterpret_cast<uintptr_t>(&mcu_hardfault);
     portDATA_SYNC_BARRIER();

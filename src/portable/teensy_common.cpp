@@ -32,6 +32,7 @@
 #include <sys/lock.h>
 #include <unwind.h>
 #include <tuple>
+#include <cstdarg>
 
 #include "avr/pgmspace.h"
 #include "teensy.h"
@@ -60,14 +61,85 @@ extern uint32_t set_arm_clock(uint32_t frequency);
 uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
 
 
-uint8_t get_debug_led_pin() __attribute__((weak)) FLASHMEM;
-uint8_t get_debug_led_pin() {
+FLASHMEM __attribute__((weak)) uint8_t get_debug_led_pin() {
     return LED_BUILTIN;
 }
 
-FLASHMEM void serial_puts(const char* str) {
+static FLASHMEM void exc_puint(void (*print)(const char), unsigned int num) {
+    char buf[12];
+    unsigned int i = sizeof(buf) - 2;
+
+    buf[sizeof(buf) - 1] = 0;
+    while (1) {
+        buf[i] = (num % 10) + '0';
+        num /= 10;
+        if (num == 0)
+            break;
+        i--;
+    }
+    exc_printf(print, buf + i);
+}
+
+FLASHMEM void exc_printf(void (*print)(const char), const char* format, ...) {
+    std::va_list args;
+    unsigned int val;
+    int n;
+
+    va_start(args, format);
+    for (; *format != 0; format++) { // no-frills stand-alone printf
+        if (*format == '%') {
+            ++format;
+            if (*format == '%')
+                goto out;
+            if (*format == '-')
+                format++; // ignore size
+            while (*format >= '0' && *format <= '9')
+                format++; // ignore size
+            if (*format == 'l')
+                format++; // ignore long
+            if (*format == '\0')
+                break;
+            if (*format == 's') {
+                exc_printf(print, (char*) va_arg(args, int));
+            } else if (*format == 'd') {
+                n = va_arg(args, int);
+                if (n < 0) {
+                    n = -n;
+                    print('-');
+                }
+                exc_puint(print, n);
+            } else if (*format == 'u') {
+                exc_puint(print, va_arg(args, unsigned int));
+            } else if (*format == 'x' || *format == 'X') {
+                val = va_arg(args, unsigned int);
+                for (n = 0; n < 8; n++) {
+                    unsigned int d = (val >> 28) & 15;
+                    print((d < 10) ? d + '0' : d - 10 + 'A');
+                    val <<= 4;
+                }
+            } else if (*format == 'c') {
+                print((char) va_arg(args, int));
+            }
+        } else {
+        out:
+            print(*format);
+        }
+    }
+    va_end(args);
+}
+
+FLASHMEM __attribute__((weak)) void serialport_put(const char c) {
+    ::Serial.print(c);
+}
+
+FLASHMEM __attribute__((weak)) void serialport_puts(const char* str) {
     ::Serial.println(str);
     ::Serial.flush();
+}
+
+FLASHMEM __attribute__((weak)) void serialport_flush() {
+    ::Serial.flush();
+    freertos::delay_ms(100);
 }
 
 /* SCB Application Interrupt and Reset Control Register Definitions */
@@ -96,12 +168,6 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
     SCB_AIRCR = reg_value;
 }
 
-#ifdef PRINT_DEBUG_STUFF
-#define FAULT_PRINTF printf_debug
-#else
-#define FAULT_PRINTF ::Serial.printf
-#endif
-
 uint32_t g_trace_lr;
 void prvTaskExitError();
 
@@ -110,14 +176,14 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
 
     const auto ip { _Unwind_GetIP(ctx) };
     const auto start { _Unwind_GetRegionStart(ctx) };
-    FAULT_PRINTF(PSTR("\t#%d"), *p_depth);
-    FAULT_PRINTF(PSTR(":\t%04x"), ip);
+    EXC_PRINTF(PSTR("\t#%d"), *p_depth);
+    EXC_PRINTF(PSTR(":\t%04x"), ip);
 
     if (ip == (reinterpret_cast<uintptr_t>(&prvTaskExitError) & ~1) || ip == 0) {
-        FAULT_PRINTF(PSTR(" [entry]\r\n"));
+        EXC_PRINTF(PSTR(" [entry]\r\n"));
         return _URC_END_OF_STACK;
     } else {
-        FAULT_PRINTF(PSTR(" [%04x]\r\n"), start);
+        EXC_PRINTF(PSTR(" [%04x]\r\n"), start);
     }
 
     if (g_trace_lr) {
@@ -141,17 +207,19 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
  * @param[in] expr: Expression that failed as C-string
  */
 FLASHMEM void assert_blink(const char* file, int line, const char* func, const char* expr) {
-    FAULT_PRINTF(PSTR("\r\nASSERT in [%s:%u]\t"), file, line);
-    FAULT_PRINTF(PSTR("%s(): "), func);
-    FAULT_PRINTF(PSTR("%s\r\n"), expr);
+    EXC_PRINTF(PSTR("\r\nASSERT in [%s:%u]\t"), file, line);
+    EXC_PRINTF(PSTR("%s(): "), func);
+    EXC_PRINTF(PSTR("%s\r\n"), expr);
 
-    FAULT_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    EXC_FLUSH();
+
     __disable_irq();
     portINSTR_SYNC_BARRIER();
     int depth {};
     _Unwind_Backtrace(&trace_fcn, &depth);
     __enable_irq();
-    FAULT_PRINTF(PSTR("\r\n"));
+    EXC_PRINTF(PSTR("\r\n"));
 
     freertos::error_blink(1);
 }
@@ -184,28 +252,13 @@ FLASHMEM void print_ram_usage() {
     const auto info1 { ram1_usage() };
     const auto info2 { ram2_usage() };
 
-    ::Serial.print(PSTR("RAM1 size: "));
-    ::Serial.print(std::get<5>(info1) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, free RAM1: "));
-    ::Serial.print(std::get<0>(info1) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, data used: "));
-    ::Serial.print((std::get<1>(info1)) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, bss used: "));
-    ::Serial.print(std::get<2>(info1) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, used heap: "));
-    ::Serial.print(std::get<3>(info1) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, system free: "));
-    ::Serial.print(std::get<4>(info1) / 1'024UL, 10);
-    ::Serial.println(PSTR(" KB"));
-
-    ::Serial.print(PSTR("RAM2 size: "));
-    ::Serial.print(std::get<1>(info2) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, free RAM2: "));
-    ::Serial.print(std::get<0>(info2) / 1'024UL, 10);
-    ::Serial.print(PSTR(" KB, used RAM2: "));
-    ::Serial.print((std::get<1>(info2) - std::get<0>(info2)) / 1'024UL, 10);
-
-    ::Serial.println(PSTR(" KB"));
+    EXC_PRINTF(PSTR("RAM1 size: %u KB, free RAM1: %u KB, data used: %u KB, bss used: %u KB, used heap: %u KB, system free: %u KB\r\n"),
+        std::get<5>(info1) / 1'024UL, std::get<0>(info1) / 1'024UL, std::get<1>(info1) / 1'024UL, std::get<2>(info1) / 1'024UL, std::get<3>(info1) / 1'024UL,
+        std::get<4>(info1) / 1'024UL);
+    EXC_PRINTF(PSTR("RAM2 size: %u KB, free RAM2: %u KB, used RAM2: %u KB\r\n"), std::get<1>(info2) / 1'024UL, std::get<0>(info2) / 1'024UL,
+        (std::get<1>(info2) - std::get<0>(info2)) / 1'024UL);
+    EXC_PRINTF(PSTR("\r\n"));
+    EXC_FLUSH();
 }
 } // namespace freertos
 
@@ -213,7 +266,7 @@ extern "C" {
 void startup_late_hook() FLASHMEM;
 void startup_late_hook() {
     if (DEBUG) {
-        printf_debug(PSTR("startup_late_hook()\n"));
+        EXC_PRINTF(PSTR("startup_late_hook()\r\n"));
     }
     __disable_irq();
     portINSTR_SYNC_BARRIER();
@@ -225,7 +278,7 @@ void startup_late_hook() {
     __enable_irq();
     ::vTaskSuspendAll();
     if (DEBUG) {
-        printf_debug(PSTR("startup_late_hook() done.\n"));
+        EXC_PRINTF(PSTR("startup_late_hook() done.\r\n"));
     }
 }
 
@@ -255,8 +308,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     static char taskname[configMAX_TASK_NAME_LEN + 1];
 
     std::memcpy(taskname, task_name, configMAX_TASK_NAME_LEN);
-    ::serial_puts(PSTR("STACK OVERFLOW: "));
-    ::serial_puts(taskname);
+    EXC_PRINTF(PSTR("STACK OVERFLOW: %s\r\n"), taskname);
 
     freertos::error_blink(3);
 }
@@ -273,17 +325,17 @@ void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
     if (DEBUG) {
-        printf_debug(PSTR("_sbrk(%u)\r\n"), incr);
-        printf_debug(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(_g_current_heap_end));
-        printf_debug(PSTR("_ebss=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_ebss));
-        printf_debug(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
+        EXC_PRINTF(PSTR("_sbrk(%u)\r\n"), incr);
+        EXC_PRINTF(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(_g_current_heap_end));
+        EXC_PRINTF(PSTR("_ebss=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_ebss));
+        EXC_PRINTF(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
     }
 
     void* previous_heap_end { _g_current_heap_end };
 
     if ((reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
         || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
-        printf_debug(PSTR("_sbrk(%u): no mem available.\r\n"), incr);
+        EXC_PRINTF(PSTR("_sbrk(%u): no mem available.\r\n"), incr);
 #if configUSE_MALLOC_FAILED_HOOK == 1
         ::vApplicationMallocFailedHook();
 #else
