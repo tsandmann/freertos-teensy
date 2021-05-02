@@ -1,6 +1,6 @@
 // mutex -*- C++ -*-
 
-// Copyright (C) 2008-2018 Free Software Foundation, Inc.
+// Copyright (C) 2008-2021 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,63 +22,91 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#define __GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#if __GCC_VERSION >= 60100
+
 #include <mutex>
 
-#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
-#ifndef _GLIBCXX_HAVE_TLS
-namespace {
-inline std::unique_lock<std::mutex>*& __get_once_functor_lock_ptr() {
-    static std::unique_lock<std::mutex>* __once_functor_lock_ptr = 0;
-    return __once_functor_lock_ptr;
-}
-} // namespace
-#endif
+#ifdef _GLIBCXX_HAS_GTHREADS
 
-namespace std _GLIBCXX_VISIBILITY(default) {
-    _GLIBCXX_BEGIN_NAMESPACE_VERSION
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef _GLIBCXX_HAVE_TLS
-    __thread void* __once_callable;
-    __thread void (*__once_call)();
-#else
-    // Explicit instantiation due to -fno-implicit-instantiation.
-    template class function<void()>;
-    function<void()> __once_functor;
+  __thread void* __once_callable;
+  __thread void (*__once_call)();
 
-    mutex& __get_once_mutex() {
-        static mutex once_mutex;
-        return once_mutex;
+  extern "C" void __once_proxy()
+  {
+    // The caller stored a function pointer in __once_call. If it requires
+    // any state, it gets it from __once_callable.
+    __once_call();
+  }
+
+#else // ! TLS
+
+  // Explicit instantiation due to -fno-implicit-instantiation.
+  template class function<void()>;
+
+  function<void()> __once_functor;
+
+  mutex&
+  __get_once_mutex()
+  {
+    static mutex once_mutex;
+    return once_mutex;
+  }
+
+namespace
+{
+  // Store ptr in a global variable and return the previous value.
+  inline unique_lock<mutex>*
+  set_lock_ptr(unique_lock<mutex>* ptr)
+  {
+    static unique_lock<mutex>* __once_functor_lock_ptr = nullptr;
+    return std::__exchange(__once_functor_lock_ptr, ptr);
+  }
+}
+
+  // code linked against ABI 3.4.12 and later uses this
+  void
+  __set_once_functor_lock_ptr(unique_lock<mutex>* __ptr)
+  {
+    (void) set_lock_ptr(__ptr);
+  }
+
+  // unsafe - retained for compatibility with ABI 3.4.11
+  unique_lock<mutex>&
+  __get_once_functor_lock()
+  {
+    static unique_lock<mutex> once_functor_lock(__get_once_mutex(), defer_lock);
+    return once_functor_lock;
+  }
+
+  // This is called via pthread_once while __get_once_mutex() is locked.
+  extern "C" void
+  __once_proxy()
+  {
+    // Get the callable out of the global functor.
+    function<void()> callable = std::move(__once_functor);
+
+    // Then unlock the global mutex
+    if (unique_lock<mutex>* lock = set_lock_ptr(nullptr))
+    {
+      // Caller is using the new ABI and provided a pointer to its lock.
+      lock->unlock();
     }
+    else
+      __get_once_functor_lock().unlock();  // global lock
 
-    // code linked against ABI 3.4.12 and later uses this
-    void __set_once_functor_lock_ptr(unique_lock<mutex> * __ptr) {
-        __get_once_functor_lock_ptr() = __ptr;
-    }
+    // Finally, invoke the callable.
+    callable();
+  }
+#endif // ! TLS
 
-    // unsafe - retained for compatibility with ABI 3.4.11
-    unique_lock<mutex>& __get_once_functor_lock() {
-        static unique_lock<mutex> once_functor_lock(__get_once_mutex(), defer_lock);
-        return once_functor_lock;
-    }
-#endif
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
-    extern "C" {
-    void __once_proxy() {
-#ifndef _GLIBCXX_HAVE_TLS
-        function<void()> __once_call = std::move(__once_functor);
-        if (unique_lock<mutex>* __lock = __get_once_functor_lock_ptr()) {
-            // caller is using new ABI and provided lock ptr
-            __get_once_functor_lock_ptr() = 0;
-            __lock->unlock();
-        } else {
-            __get_once_functor_lock().unlock(); // global lock
-        }
-#endif
-        __once_call();
-    }
-    }
-
-    _GLIBCXX_END_NAMESPACE_VERSION
-} // namespace )
-
-#endif // _GLIBCXX_HAS_GTHREADS && _GLIBCXX_USE_C99_STDINT_TR1
+#endif // _GLIBCXX_HAS_GTHREADS
+#endif // __GCC_VERSION >= 60100

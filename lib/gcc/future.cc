@@ -1,6 +1,6 @@
 // future -*- C++ -*-
 
-// Copyright (C) 2009-2018 Free Software Foundation, Inc.
+// Copyright (C) 2009-2021 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,76 +22,99 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "arduino_freertos.h"
+#define __GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#if __GCC_VERSION >= 60100
 
 #include <future>
 #include <bits/functexcept.h>
 
-namespace {
-struct future_error_category : public std::error_category {
-    virtual const char* name() const noexcept {
-        return "future";
-    }
+namespace
+{
+  struct future_error_category : public std::error_category
+  {
+    virtual const char*
+    name() const noexcept
+    { return "future"; }
 
     _GLIBCXX_DEFAULT_ABI_TAG
-    virtual std::string message(int __ec) const {
-        std::string __msg;
-        switch (std::future_errc(__ec)) {
-            case std::future_errc::broken_promise: __msg = "Broken promise"; break;
-            case std::future_errc::future_already_retrieved: __msg = "Future already retrieved"; break;
-            case std::future_errc::promise_already_satisfied: __msg = "Promise already satisfied"; break;
-            case std::future_errc::no_state: __msg = "No associated state"; break;
-            default: __msg = "Unknown error"; break;
-        }
-        return __msg;
+    virtual std::string message(int __ec) const
+    {
+      std::string __msg;
+      switch (std::future_errc(__ec))
+      {
+      case std::future_errc::broken_promise:
+          __msg = "Broken promise";
+          break;
+      case std::future_errc::future_already_retrieved:
+          __msg = "Future already retrieved";
+          break;
+      case std::future_errc::promise_already_satisfied:
+          __msg = "Promise already satisfied";
+          break;
+      case std::future_errc::no_state:
+          __msg = "No associated state";
+          break;
+      default:
+          __msg = "Unknown error";
+          break;
+      }
+      return __msg;
     }
-};
+  };
 
-const future_error_category& __future_category_instance() noexcept {
-    static const future_error_category __fec {};
+  const future_error_category&
+  __future_category_instance() noexcept
+  {
+    static const future_error_category __fec{};
     return __fec;
+  }
 }
-} // namespace
 
-namespace std _GLIBCXX_VISIBILITY(default) {
-    _GLIBCXX_BEGIN_NAMESPACE_VERSION
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-    void __throw_future_error(int __i __attribute__((unused))) {
-        // _GLIBCXX_THROW_OR_ABORT(future_error(make_error_code(future_errc(__i))));
-        assert_blink("", __LINE__, __PRETTY_FUNCTION__, __future_category_instance().message(__i).c_str());
-    }
+  void
+  __throw_future_error(int __i __attribute__((unused)))
+  { _GLIBCXX_THROW_OR_ABORT(future_error(make_error_code(future_errc(__i)))); }
 
-    const error_category& future_category() noexcept {
-        return __future_category_instance();
-    }
+  const error_category& future_category() noexcept
+  { return __future_category_instance(); }
 
-    future_error::~future_error() noexcept {}
+  future_error::~future_error() noexcept { }
 
-    const char* future_error::what() const noexcept {
-        return logic_error::what();
-    }
+  const char*
+  future_error::what() const noexcept { return logic_error::what(); }
 
-#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
-    __future_base::_Result_base::_Result_base() = default;
+#ifdef _GLIBCXX_HAS_GTHREADS
+  __future_base::_Result_base::_Result_base() = default;
 
-    __future_base::_Result_base::~_Result_base() = default;
+  __future_base::_Result_base::~_Result_base() = default;
 
-    void __future_base::_State_baseV2::_Make_ready::_S_run(void* p) {
-        unique_ptr<_Make_ready> mr { static_cast<_Make_ready*>(p) };
-        if (auto state = mr->_M_shared_state.lock()) {
-            // Use release MO to synchronize with observers of the ready state.
-            state->_M_status._M_store_notify_all(_Status::__ready, memory_order_release);
-        }
-    }
+  void
+  __future_base::_State_baseV2::_Make_ready::_S_run(void* p)
+  {
+    unique_ptr<_Make_ready> mr{static_cast<_Make_ready*>(p)};
+    if (auto state = mr->_M_shared_state.lock())
+      {
+	// Use release MO to synchronize with observers of the ready state.
+	state->_M_status._M_store_notify_all(_Status::__ready,
+	    memory_order_release);
+      }
+  }
 
-    // defined in src/c++11/condition_variable.cc
-    extern void __at_thread_exit(__at_thread_exit_elt * elt);
+  // defined in src/c++11/condition_variable.cc
+  extern void
+  __at_thread_exit(__at_thread_exit_elt* elt);
 
-    void __future_base::_State_baseV2::_Make_ready::_M_set() {
-        _M_cb = &_Make_ready::_S_run;
-        __at_thread_exit(this);
-    }
-#endif
+  void
+  __future_base::_State_baseV2::_Make_ready::_M_set()
+  {
+    _M_cb = &_Make_ready::_S_run;
+    __at_thread_exit(this);
+  }
+#endif // _GLIBCXX_HAS_GTHREADS
 
-    _GLIBCXX_END_NAMESPACE_VERSION
-} // namespace )
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
+#endif // __GCC_VERSION >= 60100

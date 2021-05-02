@@ -205,6 +205,7 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[15] = xPortSysTickHandler;
 
     /* configure SysTick to interrupt at the requested rate */
+    static_assert((static_cast<int32_t>(configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
     SYST_RVR = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
     SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
 
@@ -229,7 +230,13 @@ void vPortSetupTimerInterrupt() {
 #if configUSE_TICK_HOOK > 0
 void vApplicationTickHook();
 void vApplicationTickHook() {
-    systick_millis_count = systick_millis_count + 1;
+    static_assert(configTICK_RATE_HZ % 1'000 == 0, "unsupported configTICK_RATE_HZ detected, please adjust vApplicationTickHook()!");
+
+    static uint32_t n {};
+    if (configTICK_RATE_HZ == 1'000UL || ++n == configTICK_RATE_HZ / 1'000UL) {
+        systick_millis_count = systick_millis_count + 1;
+        n = 0;
+    }
 }
 #endif // configUSE_TICK_HOOK
 } // extern C
