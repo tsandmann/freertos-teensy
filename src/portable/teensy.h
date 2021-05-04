@@ -114,6 +114,8 @@ void print_ram_usage();
  */
 uint64_t get_us();
 
+uint64_t get_us_from_isr();
+
 /**
  * @brief Get the current time in milliseconds
  * @return Current time in ms

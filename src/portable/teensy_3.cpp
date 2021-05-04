@@ -177,9 +177,29 @@ uint64_t get_us() {
     current = load - current;
 #if (configUSE_TICKLESS_IDLE == 1)
 #warning "tickless idle mode is untested"
-    return static_cast<uint64_t>(count) * 1000U + current * 1000U / (load + 1U);
+    return static_cast<uint64_t>(count) * 1'000U + current * 1'000U / (load + 1U);
 #else
-    return static_cast<uint64_t>(count) * 1000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1000U);
+    return static_cast<uint64_t>(count) * 1'000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1'000U);
+#endif
+}
+
+uint64_t get_us_from_isr() {
+    uint32_t current, load, count, istatus;
+    current = SYST_CVR;
+    count = get_ms();
+    istatus = SCB_ICSR; // bit 26 indicates if systick exception pending
+    load = SYST_RVR;
+
+    if ((istatus & SCB_ICSR_PENDSTSET) && current > 50) {
+        ++count;
+    }
+
+    current = load - current;
+#if (configUSE_TICKLESS_IDLE == 1)
+#warning "tickless idle mode is untested"
+    return static_cast<uint64_t>(count) * 1'000U + current * 1'000U / (load + 1U);
+#else
+    return static_cast<uint64_t>(count) * 1'000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1'000U);
 #endif
 }
 } // namespace freertos
@@ -189,6 +209,7 @@ void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
+void init_retarget_locks() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
@@ -219,6 +240,8 @@ void vPortSetupTimerInterrupt() {
 #endif // configUSE_TICKLESS_IDLE
 
     freertos::setup_event_responder();
+
+    init_retarget_locks();
 
     ::xTaskResumeAll();
 

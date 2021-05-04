@@ -162,7 +162,7 @@ static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
     uint32_t PriorityGroupTmp = (PriorityGroup & (uint32_t) 0x07UL); /* only values 0..7 are used */
 
     reg_value = SCB_AIRCR; /* read old register configuration */
-    reg_value &= ~((uint32_t)(SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); /* clear bits to change */
+    reg_value &= ~((uint32_t) (SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); /* clear bits to change */
     reg_value =
         (reg_value | ((uint32_t) 0x5FAUL << SCB_AIRCR_VECTKEY_Pos) | (PriorityGroupTmp << SCB_AIRCR_PRIGROUP_Pos)); /* Insert write key and priority group */
     SCB_AIRCR = reg_value;
@@ -267,10 +267,17 @@ void startup_late_hook() FLASHMEM;
 void startup_late_hook() {
     if (DEBUG) {
         EXC_PRINTF(PSTR("startup_late_hook()\r\n"));
+        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
     }
     __disable_irq();
     portINSTR_SYNC_BARRIER();
     __NVIC_SetPriorityGrouping(0);
+
+    /* increase systick priority before kernel is started to allow early malloc() calls */
+    static constexpr uint32_t SYSTICK_PRIO { ((configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) << (8 - configPRIO_BITS)) };
+    static constexpr uint32_t PENDSV_PRIO { configKERNEL_INTERRUPT_PRIORITY };
+    SCB_SHPR3 = (SYSTICK_PRIO << 24) | (PENDSV_PRIO << 16);
+
 #if defined USB_IRQ_PRIO && (defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41)
     NVIC_SET_PRIORITY(IRQ_USB1, USB_IRQ_PRIO);
 #endif
@@ -278,6 +285,7 @@ void startup_late_hook() {
     __enable_irq();
     ::vTaskSuspendAll();
     if (DEBUG) {
+        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
         EXC_PRINTF(PSTR("startup_late_hook() done.\r\n"));
     }
 }
@@ -349,6 +357,7 @@ void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
 }
 #endif // ! PLATFORMIO
 
+extern UBaseType_t uxCriticalNesting;
 void __malloc_lock(struct _reent*) {
     portENTER_CRITICAL();
 };

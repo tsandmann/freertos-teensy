@@ -163,19 +163,27 @@ FLASHMEM std::tuple<size_t, size_t> ram2_usage() {
 }
 
 FASTRUN uint64_t get_us() {
-    uint32_t smc, scc;
+    uint32_t smc, scc, cyccnt;
     do {
         __LDREXW(&systick_safe_read);
         smc = systick_millis_count;
         scc = systick_cycle_count;
+        cyccnt = ARM_DWT_CYCCNT;
     } while (__STREXW(1, &systick_safe_read));
-    const uint32_t cyccnt { ARM_DWT_CYCCNT };
-    portMEMORY_BARRIER();
+
     const uint32_t ccdelta { cyccnt - scc };
-    uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
-    if (frac > 1'000) {
-        frac = 1'000;
-    }
+    const uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
+
+    return static_cast<uint64_t>(smc) * 1'000ULL + frac;
+}
+
+FASTRUN uint64_t get_us_from_isr() {
+    const uint32_t smc { systick_millis_count };
+    const uint32_t scc { systick_cycle_count };
+    const uint32_t cyccnt { ARM_DWT_CYCCNT };
+    const uint32_t ccdelta { cyccnt - scc };
+    const uint32_t frac { static_cast<uint32_t>((static_cast<uint64_t>(ccdelta) * scale_cpu_cycles_to_microseconds) >> 32) };
+
     return static_cast<uint64_t>(smc) * 1'000ULL + frac;
 }
 } // namespace freertos
@@ -185,10 +193,11 @@ void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
+void init_retarget_locks() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
-        printf_debug(PSTR("vPortSetupTimerInterrupt()\n"));
+        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt()\r\n"));
     }
 
     __disable_irq();
@@ -218,10 +227,13 @@ void vPortSetupTimerInterrupt() {
 
     freertos::setup_event_responder();
 
+    init_retarget_locks();
+
     ::xTaskResumeAll();
 
     if (DEBUG) {
-        printf_debug(PSTR("vPortSetupTimerInterrupt() done.\n"));
+        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
+        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
     }
 }
 
@@ -229,10 +241,11 @@ void vPortSetupTimerInterrupt() {
 void vApplicationTickHook();
 void vApplicationTickHook() {
     static_assert(configTICK_RATE_HZ % 1'000 == 0, "unsupported configTICK_RATE_HZ detected, please adjust vApplicationTickHook()!");
-
     static uint32_t n {};
+
+    const uint32_t cyccnt { ARM_DWT_CYCCNT };
     if (configTICK_RATE_HZ == 1'000UL || ++n == configTICK_RATE_HZ / 1'000UL) {
-        systick_cycle_count = ARM_DWT_CYCCNT;
+        systick_cycle_count = cyccnt;
         systick_millis_count = systick_millis_count + 1;
         n = 0;
     }
