@@ -142,8 +142,6 @@ void prvTaskExitError( void ) __attribute__ (( section( ".flashmem" ) ));
 
 /*-----------------------------------------------------------*/
 
-/* Each task maintains its own interrupt status in the critical nesting
- * variable. */
 static UBaseType_t uxCriticalNesting = 0xaaaaaaaa;
 
 /*
@@ -262,11 +260,8 @@ void vPortSVCHandler( void )
 }
 /*-----------------------------------------------------------*/
 
-void init_retarget_locks();
 static void prvPortStartFirstTask( void )
 {
-	init_retarget_locks();
-
 	/* Start the first task.  This also clears the bit that indicates the FPU is
      * in use in case the FPU was used before the scheduler was started - which
      * would otherwise result in the unnecessary leaving of space in the SVC stack
@@ -369,8 +364,7 @@ BaseType_t xPortStartScheduler( void )
 	#endif /* conifgASSERT_DEFINED */
 
 	/* Make PendSV and SysTick the lowest priority interrupts. */
-    portNVIC_SHPR3_REG |= portNVIC_PENDSV_PRI;
-    portNVIC_SHPR3_REG |= portNVIC_SYSTICK_PRI;
+	portNVIC_SHPR3_REG = portNVIC_PENDSV_PRI | portNVIC_SYSTICK_PRI;
 
 	/* Start the timer that generates the tick ISR.  Interrupts are disabled
      * here already. */

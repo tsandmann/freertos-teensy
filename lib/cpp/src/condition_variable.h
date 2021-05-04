@@ -55,14 +55,14 @@ public:
     }
 
     void lock() {
-        xSemaphoreTake(_xSemaphore, portMAX_DELAY);
+        ::xSemaphoreTake(_xSemaphore, portMAX_DELAY);
     }
     void unlock() {
-        xSemaphoreGive(_xSemaphore);
+        ::xSemaphoreGive(_xSemaphore);
     }
 
     ~semaphore() {
-        vSemaphoreDelete(_xSemaphore);
+        ::vSemaphoreDelete(_xSemaphore);
     }
 
     semaphore(const semaphore&) = delete;

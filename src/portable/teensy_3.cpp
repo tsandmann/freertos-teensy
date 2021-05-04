@@ -177,9 +177,29 @@ uint64_t get_us() {
     current = load - current;
 #if (configUSE_TICKLESS_IDLE == 1)
 #warning "tickless idle mode is untested"
-    return static_cast<uint64_t>(count) * 1000U + current * 1000U / (load + 1U);
+    return static_cast<uint64_t>(count) * 1'000U + current * 1'000U / (load + 1U);
 #else
-    return static_cast<uint64_t>(count) * 1000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1000U);
+    return static_cast<uint64_t>(count) * 1'000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1'000U);
+#endif
+}
+
+uint64_t get_us_from_isr() {
+    uint32_t current, load, count, istatus;
+    current = SYST_CVR;
+    count = get_ms();
+    istatus = SCB_ICSR; // bit 26 indicates if systick exception pending
+    load = SYST_RVR;
+
+    if ((istatus & SCB_ICSR_PENDSTSET) && current > 50) {
+        ++count;
+    }
+
+    current = load - current;
+#if (configUSE_TICKLESS_IDLE == 1)
+#warning "tickless idle mode is untested"
+    return static_cast<uint64_t>(count) * 1'000U + current * 1'000U / (load + 1U);
+#else
+    return static_cast<uint64_t>(count) * 1'000U + current / (configCPU_CLOCK_HZ / configTICK_RATE_HZ / 1'000U);
 #endif
 }
 } // namespace freertos
@@ -189,6 +209,7 @@ void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
+void init_retarget_locks() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
@@ -205,6 +226,7 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[15] = xPortSysTickHandler;
 
     /* configure SysTick to interrupt at the requested rate */
+    static_assert((static_cast<int32_t>(configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
     SYST_RVR = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
     SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
 
@@ -219,6 +241,8 @@ void vPortSetupTimerInterrupt() {
 
     freertos::setup_event_responder();
 
+    init_retarget_locks();
+
     ::xTaskResumeAll();
 
     if (DEBUG) {
@@ -229,7 +253,13 @@ void vPortSetupTimerInterrupt() {
 #if configUSE_TICK_HOOK > 0
 void vApplicationTickHook();
 void vApplicationTickHook() {
-    systick_millis_count = systick_millis_count + 1;
+    static_assert(configTICK_RATE_HZ % 1'000 == 0, "unsupported configTICK_RATE_HZ detected, please adjust vApplicationTickHook()!");
+
+    static uint32_t n {};
+    if (configTICK_RATE_HZ == 1'000UL || ++n == configTICK_RATE_HZ / 1'000UL) {
+        systick_millis_count = systick_millis_count + 1;
+        n = 0;
+    }
 }
 #endif // configUSE_TICK_HOOK
 } // extern C

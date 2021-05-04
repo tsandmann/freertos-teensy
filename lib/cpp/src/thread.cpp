@@ -47,6 +47,103 @@
 void __pthread_key_create() {}
 void pthread_cancel() {}
 
+extern "C" {
+int __gthread_once(__gthread_once_t* once, void (*func)(void)) {
+    static __gthread_mutex_t s_m { xSemaphoreCreateMutex() };
+    if (!s_m) {
+        return 12; // POSIX error: ENOMEM
+    }
+
+    __gthread_once_t flag { true };
+    xSemaphoreTakeRecursive(s_m, portMAX_DELAY);
+    std::swap(*once, flag);
+    xSemaphoreGiveRecursive(s_m);
+
+    if (flag == false) {
+        func();
+    }
+
+    return 0;
+}
+
+// returns: 1 - thread system is active; 0 - thread system is not active
+int __gthread_active_p() {
+    return 1;
+}
+
+
+int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mutex_t* mutex, const __gthread_time_t* abs_timeout) {
+    auto this_thrd_hndl { __gthread_t::native_task_handle() };
+    cond->lock();
+    cond->push(this_thrd_hndl);
+    cond->unlock();
+
+    timeval now {};
+    gettimeofday(&now, NULL);
+
+    auto ms { static_cast<int32_t>((*abs_timeout - now).milliseconds()) };
+    if (ms < 0) {
+        ms = 0;
+    }
+
+    __gthread_mutex_unlock(mutex);
+    const auto fTimeout { 0 == ulTaskNotifyTakeIndexed(1, pdTRUE, pdMS_TO_TICKS(ms)) };
+    __gthread_mutex_lock(mutex);
+
+    int result {};
+    if (fTimeout) { // timeout - remove the thread from the waiting list
+        cond->lock();
+        cond->remove(this_thrd_hndl);
+        cond->unlock();
+        result = 138; // posix ETIMEDOUT
+    }
+
+    return result;
+}
+
+int __gthread_cond_wait(__gthread_cond_t* cond, __gthread_mutex_t* mutex) {
+    auto this_thrd_hndl { __gthread_t::native_task_handle() };
+    cond->lock();
+    cond->push(this_thrd_hndl);
+    cond->unlock();
+
+    __gthread_mutex_unlock(mutex);
+    const auto res { ::ulTaskNotifyTakeIndexed(1, pdTRUE, portMAX_DELAY) };
+    __gthread_mutex_lock(mutex);
+    configASSERT(res == pdTRUE);
+
+    return static_cast<int>(res);
+}
+
+int __gthread_cond_signal(__gthread_cond_t* cond) {
+    configASSERT(cond);
+
+    cond->lock();
+    if (!cond->empty()) {
+        auto t = cond->front();
+        cond->pop();
+        ::xTaskNotifyGiveIndexed(t, 1);
+    }
+    cond->unlock();
+
+    return 0; // FIXME: return value?
+}
+
+int __gthread_cond_broadcast(__gthread_cond_t* cond) {
+    configASSERT(cond);
+
+    cond->lock();
+    while (!cond->empty()) {
+        auto t = cond->front();
+        cond->pop();
+        ::xTaskNotifyGiveIndexed(t, 1);
+    }
+    cond->unlock();
+    return 0; // FIXME: return value?
+}
+
+} // extern C
+
 namespace free_rtos_std {
 extern Key* s_key;
 } // namespace free_rtos_std
