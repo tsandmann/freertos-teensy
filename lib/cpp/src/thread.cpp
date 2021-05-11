@@ -87,7 +87,7 @@ int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mutex_t* mutex, c
     }
 
     __gthread_mutex_unlock(mutex);
-    const auto fTimeout { 0 == ulTaskNotifyTakeIndexed(1, pdTRUE, pdMS_TO_TICKS(ms)) };
+    const auto fTimeout { 0 == ulTaskNotifyTakeIndexed(configTASK_NOTIFICATION_ARRAY_ENTRIES - 1, pdTRUE, pdMS_TO_TICKS(ms)) };
     __gthread_mutex_lock(mutex);
 
     int result {};
@@ -108,7 +108,7 @@ int __gthread_cond_wait(__gthread_cond_t* cond, __gthread_mutex_t* mutex) {
     cond->unlock();
 
     __gthread_mutex_unlock(mutex);
-    const auto res { ::ulTaskNotifyTakeIndexed(1, pdTRUE, portMAX_DELAY) };
+    const auto res { ::ulTaskNotifyTakeIndexed(configTASK_NOTIFICATION_ARRAY_ENTRIES - 1, pdTRUE, portMAX_DELAY) };
     __gthread_mutex_lock(mutex);
     configASSERT(res == pdTRUE);
 
@@ -122,7 +122,7 @@ int __gthread_cond_signal(__gthread_cond_t* cond) {
     if (!cond->empty()) {
         auto t = cond->front();
         cond->pop();
-        ::xTaskNotifyGiveIndexed(t, 1);
+        ::xTaskNotifyGiveIndexed(t, configTASK_NOTIFICATION_ARRAY_ENTRIES - 1);
     }
     cond->unlock();
 
@@ -136,7 +136,7 @@ int __gthread_cond_broadcast(__gthread_cond_t* cond) {
     while (!cond->empty()) {
         auto t = cond->front();
         cond->pop();
-        ::xTaskNotifyGiveIndexed(t, 1);
+        ::xTaskNotifyGiveIndexed(t, configTASK_NOTIFICATION_ARRAY_ENTRIES - 1);
     }
     cond->unlock();
     return 0; // FIXME: return value?

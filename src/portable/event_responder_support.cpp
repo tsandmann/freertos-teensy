@@ -39,7 +39,7 @@ void setup_event_responder() {
     ::xTaskCreate(
         [](void*) {
             while (true) {
-                ::xTaskNotifyWaitIndexed(1, 0, 0, nullptr, pdMS_TO_TICKS(YIELD_TASK_PERIOD_MS));
+                ::xTaskNotifyWait(0, 0, nullptr, pdMS_TO_TICKS(YIELD_TASK_PERIOD_MS));
                 freertos::yield();
             }
         },
@@ -51,7 +51,7 @@ void setup_event_responder() {
     ::xTaskCreate(
         [](void*) {
             while (true) {
-                ::xTaskNotifyWaitIndexed(1, 0, 0, nullptr, portMAX_DELAY);
+                ::xTaskNotifyWait(0, 0, nullptr, portMAX_DELAY);
                 ::EventResponder::runFromInterrupt();
             }
         },

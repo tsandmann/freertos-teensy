@@ -58,7 +58,7 @@ void condition_variable::wait(std::unique_lock<std::mutex>& m) { // pre-conditio
 
     m.unlock();
 
-    ::ulTaskNotifyTakeIndexed(1, pdTRUE, portMAX_DELAY);
+    ::ulTaskNotifyTakeIndexed(configTASK_NOTIFICATION_ARRAY_ENTRIES - 1, pdTRUE, portMAX_DELAY);
 
     m.lock();
 }
@@ -68,7 +68,7 @@ void condition_variable::notify_one() {
     if (!_M_cond.empty()) {
         auto t = _M_cond.front();
         _M_cond.pop();
-        ::xTaskNotifyGiveIndexed(t, 1);
+        ::xTaskNotifyGiveIndexed(t, configTASK_NOTIFICATION_ARRAY_ENTRIES - 1);
     }
     _M_cond.unlock();
 }
@@ -78,7 +78,7 @@ void condition_variable::notify_all() {
     while (!_M_cond.empty()) {
         auto t = _M_cond.front();
         _M_cond.pop();
-        ::xTaskNotifyGiveIndexed(t, 1);
+        ::xTaskNotifyGiveIndexed(t, configTASK_NOTIFICATION_ARRAY_ENTRIES - 1);
     }
     _M_cond.unlock();
 }
