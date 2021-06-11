@@ -215,7 +215,8 @@ unsigned int thread::hardware_concurrency() noexcept {
     return 1;
 }
 
-void this_thread::__sleep_for(chrono::seconds sec, chrono::nanoseconds nsec) {
+namespace this_thread {
+void __sleep_for(chrono::seconds sec, chrono::nanoseconds nsec) {
     long ms = nsec.count() / 1'000'000;
     if (sec.count() == 0 && ms == 0 && nsec.count() > 0) {
         ms = 1; // round up to 1 ms => if sleep time != 0, sleep at least 1ms
@@ -223,7 +224,7 @@ void this_thread::__sleep_for(chrono::seconds sec, chrono::nanoseconds nsec) {
 
     vTaskDelay(pdMS_TO_TICKS(chrono::milliseconds(sec).count() + ms));
 }
-
+} // namespace this_thread
 } // namespace std
 
 namespace free_rtos_std {

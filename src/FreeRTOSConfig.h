@@ -208,4 +208,10 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #ifdef __cplusplus
 }
 #endif
+
+#if defined(__has_include) && __has_include("freertos_config_override.h")
+// config override does not work if used as an Arduino library with Teensyduino
+#include "freertos_config_override.h"
+#endif
+
 #endif /* FREERTOS_CONFIG_H */
