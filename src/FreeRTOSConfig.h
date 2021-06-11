@@ -208,4 +208,9 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #ifdef __cplusplus
 }
 #endif
+
+#if defined(__has_include) && __has_include("freertos_config_override.h")
+#include "freertos_config_override.h"
+#endif
+
 #endif /* FREERTOS_CONFIG_H */
