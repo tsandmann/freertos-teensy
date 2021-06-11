@@ -66,6 +66,7 @@ FLASHMEM __attribute__((weak)) uint8_t get_debug_led_pin() {
 }
 
 static FLASHMEM void exc_puint(void (*print)(const char), unsigned int num) {
+    // based on puint_debug() of teensy cores library (https://github.com/PaulStoffregen/cores)
     char buf[12];
     unsigned int i = sizeof(buf) - 2;
 
@@ -73,14 +74,16 @@ static FLASHMEM void exc_puint(void (*print)(const char), unsigned int num) {
     while (1) {
         buf[i] = (num % 10) + '0';
         num /= 10;
-        if (num == 0)
+        if (num == 0) {
             break;
+        }
         i--;
     }
     exc_printf(print, buf + i);
 }
 
 FLASHMEM void exc_printf(void (*print)(const char), const char* format, ...) {
+    // based on printf_debug() of teensy cores library (https://github.com/PaulStoffregen/cores)
     std::va_list args;
     unsigned int val;
     int n;
@@ -89,16 +92,21 @@ FLASHMEM void exc_printf(void (*print)(const char), const char* format, ...) {
     for (; *format != 0; format++) { // no-frills stand-alone printf
         if (*format == '%') {
             ++format;
-            if (*format == '%')
+            if (*format == '%') {
                 goto out;
-            if (*format == '-')
+            }
+            if (*format == '-') {
                 format++; // ignore size
-            while (*format >= '0' && *format <= '9')
+            }
+            while (*format >= '0' && *format <= '9') {
                 format++; // ignore size
-            if (*format == 'l')
+            }
+            if (*format == 'l') {
                 format++; // ignore long
-            if (*format == '\0')
+            }
+            if (*format == '\0') {
                 break;
+            }
             if (*format == 's') {
                 exc_printf(print, (char*) va_arg(args, int));
             } else if (*format == 'd') {

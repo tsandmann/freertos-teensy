@@ -212,7 +212,8 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[15] = xPortSysTickHandler;
 
     /* configure SysTick to interrupt at the requested rate */
-    static_assert((static_cast<int32_t>(configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
+    static_assert(
+        (static_cast<int32_t>(configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
     SYST_RVR = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
     SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
 
@@ -269,13 +270,14 @@ TaskHandle_t pxGetTaskFromStack(StackType_t*);
 _Unwind_Reason_Code trace_fcn(_Unwind_Context*, void*);
 _Unwind_Reason_Code __gnu_Unwind_Backtrace(_Unwind_Trace_Fn, void*, phase2_vrs*);
 
-void mcu_hardfault() FLASHMEM __attribute__((noreturn, used));
-void mcu_hardfault() {
+static void mcu_hardfault() FLASHMEM __attribute__((noreturn, used));
+static void mcu_hardfault() {
     freertos::error_blink(4);
 }
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
+    // based on HardFault_HandlerC() of teensy cores library (https://github.com/PaulStoffregen/cores)
     unsigned int sp;
     __asm__ volatile("mov %0, r0" : "=r"(sp)::);
 
