@@ -185,13 +185,13 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
     const auto ip { _Unwind_GetIP(ctx) };
     const auto start { _Unwind_GetRegionStart(ctx) };
     EXC_PRINTF(PSTR("\t#%d"), *p_depth);
-    EXC_PRINTF(PSTR(":\t%04x"), ip);
 
     if (ip == (reinterpret_cast<uintptr_t>(&prvTaskExitError) & ~1) || ip == 0) {
-        EXC_PRINTF(PSTR(" [entry]\r\n"));
+        EXC_PRINTF(PSTR(":\t[Task entry point]\r\n"));
         return _URC_END_OF_STACK;
     } else {
-        EXC_PRINTF(PSTR(" [%04x]\r\n"), start);
+        EXC_PRINTF(PSTR(":\t0x%04x"), *p_depth ? (ip - 1) & ~1 : ip);
+        EXC_PRINTF(PSTR(" [0x%04x]\r\n"), start);
     }
 
     if (g_trace_lr) {
