@@ -275,9 +275,32 @@ static void mcu_hardfault() {
     freertos::error_blink(4);
 }
 
+// Stack frame:
+//  xPSR
+//  ReturnAddress
+//  LR (R14) - typically FFFFFFF9 for IRQ or Exception
+//  R12
+//  R3
+//  R2
+//  R1
+//  R0
+// Code from: https://community.nxp.com/thread/389002
+void unused_interrupt_vector() FLASHMEM __attribute__((naked, used));
+void unused_interrupt_vector() {
+    __asm(".syntax unified      \n"
+          "MOV R1, LR           \n"
+          "TST R1, #4           \n"
+          "BEQ _MSP             \n"
+          "MRS R0, PSP          \n"
+          "B HardFault_HandlerC \n"
+          "_MSP:                \n"
+          "MRS R0, MSP          \n"
+          "B HardFault_HandlerC \n"
+          ".syntax divided      \n");
+}
+
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
-    // based on HardFault_HandlerC() of teensy cores library (https://github.com/PaulStoffregen/cores)
     unsigned int sp;
     __asm__ volatile("mov %0, r0" : "=r"(sp)::);
 
@@ -287,6 +310,7 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     unsigned int addr;
     __asm__ volatile("mrs %0, ipsr" : "=r"(addr)::);
 
+    /* based on CrashReportClass of teensy cores library (https://github.com/PaulStoffregen/cores) */
     EXC_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
     EXC_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
     EXC_PRINTF(PSTR(" lr:          0x%x\r\n"), lr);
