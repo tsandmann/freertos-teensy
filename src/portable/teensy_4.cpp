@@ -39,8 +39,14 @@
 #define __CORTEX_M 7
 #include "core_cmInstr.h"
 
+#ifdef PRINT_DEBUG_STUFF
+#define EXC_PRINTF_EARLY(...) exc_printf(putchar_debug, __VA_ARGS__)
+#else
+#define EXC_PRINTF_EARLY(...)
+#endif
 
-static constexpr bool DEBUG { false };
+
+static constexpr bool DEBUG { false }; // compile with -DPRINT_DEBUG_STUFF for debug output on Serial4
 
 extern "C" {
 extern unsigned long _heap_start;
@@ -194,10 +200,36 @@ void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
 void init_retarget_locks() FLASHMEM;
+void unused_interrupt_vector();
+
+/**
+ * Stack frame (code from: https://community.nxp.com/thread/389002):
+ *  xPSR
+ *  ReturnAddress
+ *  LR (R14) - typically FFFFFFF9 for IRQ or Exception
+ *  R12
+ *  R3
+ *  R2
+ *  R1
+ *  R0
+ */
+void unused_isr_freertos() FLASHMEM __attribute__((naked, used));
+void unused_isr_freertos() {
+    __asm(".syntax unified      \n"
+          "MOV R1, LR           \n"
+          "TST R1, #4           \n"
+          "BEQ _MSP             \n"
+          "MRS R0, PSP          \n"
+          "B HardFault_HandlerC \n"
+          "_MSP:                \n"
+          "MRS R0, MSP          \n"
+          "B HardFault_HandlerC \n"
+          ".syntax divided      \n");
+}
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
-        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt()\r\n"));
+        EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt()\r\n"));
     }
 
     __disable_irq();
@@ -206,10 +238,26 @@ void vPortSetupTimerInterrupt() {
     SYST_CSR = 0;
     SYST_CVR = 0;
 
+    /* override unused / fault irq handler */
+    for (auto i { 1 }; i < NVIC_NUM_INTERRUPTS + 16; ++i) {
+        if (_VectorsRam[i] == &unused_interrupt_vector) {
+            _VectorsRam[i] = &unused_isr_freertos;
+
+            if (DEBUG) {
+                // EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt(): IRQ %d updated.\r\n"), i);
+            }
+        } else if (DEBUG) {
+            EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt(): IRQ %d NOT updated.\r\n"), i);
+        }
+    }
+
     /* override arduino vector table entries */
     _VectorsRam[11] = vPortSVCHandler;
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
+
+    portDATA_SYNC_BARRIER();
+    portINSTR_SYNC_BARRIER();
 
     /* configure SysTick to interrupt at the requested rate */
     static_assert(
@@ -233,8 +281,8 @@ void vPortSetupTimerInterrupt() {
     ::xTaskResumeAll();
 
     if (DEBUG) {
-        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
-        EXC_PRINTF(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
+        EXC_PRINTF_EARLY(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
+        EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
     }
 }
 
@@ -275,29 +323,6 @@ static void mcu_hardfault() {
     freertos::error_blink(4);
 }
 
-// Stack frame:
-//  xPSR
-//  ReturnAddress
-//  LR (R14) - typically FFFFFFF9 for IRQ or Exception
-//  R12
-//  R3
-//  R2
-//  R1
-//  R0
-// Code from: https://community.nxp.com/thread/389002
-void unused_interrupt_vector() FLASHMEM __attribute__((naked, used));
-void unused_interrupt_vector() {
-    __asm(".syntax unified      \n"
-          "MOV R1, LR           \n"
-          "TST R1, #4           \n"
-          "BEQ _MSP             \n"
-          "MRS R0, PSP          \n"
-          "B HardFault_HandlerC \n"
-          "_MSP:                \n"
-          "MRS R0, MSP          \n"
-          "B HardFault_HandlerC \n"
-          ".syntax divided      \n");
-}
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
