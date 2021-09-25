@@ -325,6 +325,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 
     std::memcpy(taskname, task_name, configMAX_TASK_NAME_LEN);
     EXC_PRINTF(PSTR("STACK OVERFLOW: %s\r\n"), taskname);
+    EXC_FLUSH();
 
     freertos::error_blink(3);
 }
