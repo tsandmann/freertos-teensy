@@ -13,7 +13,7 @@ Consider this as experimental code and work in progress. *If it breaks, you get 
 ## Current Limitations
 
 * Updated libraries may cause some incompatibilities with the custom core library. More testing and documentation is needed before the custom core library change may be integrated in the official library.
-* This is a port of FreeRTOS to run its kernel on the Teensy boards. It does **not** include thread-safe peripheral drivers, thread-safe teensy libraries and so on! If you want to use peripherals (e.g. serial ports, I2C, SPI, etc.) from different tasks, you may have to synchronize the access.
+* This is a port of FreeRTOS to run its kernel on the Teensy boards. It does **not** include thread-safe peripheral drivers, thread-safe teensy libraries and so on! If you want to use peripherals (e.g. serial ports, I2C, SPI, etc.) from different tasks, you may have to synchronize the access. On the other hand C-library calls like `malloc` or `free` are thread-safe due to provided guards for newlib.
 * Documentation is very limited (including this readme).
 
 ## PlatformIO Usage
@@ -41,9 +41,10 @@ There is a test version available which can be used with Teensyduino. If you wan
 
 Currently there are the following limitations for Teensyduino projects:
 
- - There is no support for C++'s `std::thread` (the compiler provided by Teensyduino is too old for this).
+ - There is no support for C++'s [`std::thread`][StdThread], [`std::jthread`][StdThread] or [Futures][StdThread] (the compiler provided by Teensyduino is too old for this).
  - If the sketch (or any included library) uses the `EventResponder` [class](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L67), the `EventResponder::attachInterrupt()` [variant](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L111) must not be used, otherwise FreeRTOS will stop working. An update of the Teenys core library is required to make this work.
  - [`configUSE_MALLOC_FAILED_HOOK`](https://www.freertos.org/a00110.html#configUSE_MALLOC_FAILED_HOOK) has no effect, `vApplicationMallocFailedHook()` will not be executed if `malloc()` fails.
+ - For Teensy 4.x: To print useful stack traces (see [`void HardFault_HandlerC(unsigned int* hardfault_args)`](https://github.com/tsandmann/freertos-teensy/blob/master/src/portable/teensy_4.cpp#L328) and [`_Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth)`](https://github.com/tsandmann/freertos-teensy/blob/master/src/portable/teensy_common.cpp#L182)) in case of a crash or an exception, the code must be compiled by using the `-fasynchronous-unwind-tables` option to tell gcc to generate the needed unwind tables. Furthermore, an updated linker script is needed to put `.ARM.exidx` and `.ARM.extab` in the right place and some (startup) code to copy these tables into RAM. (libgcc's unwind code requires the unwind table at an address reachable by a 31-bit signed offset (+/- 0x3FFFFFFF) from executed instructions). To support call traces over C-library calls, newlib has to be compiled with `-fasynchronous-unwind-tables` option as well.
  - I haven't done much testing so far as I don't use Teensyduino for my projects.
 
 ## Continuous Integration Tests
@@ -62,3 +63,4 @@ TBD
 [TeensyPlatform]: https://github.com/tsandmann/platform-teensy
 [ARMCrossCompiler]: https://github.com/tsandmann/arm-cortexm-toolchain-linux
 [TeensyLibCore]: https://github.com/tsandmann/teensy-cores
+[StdThread]: https://en.cppreference.com/w/cpp/thread
