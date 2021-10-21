@@ -1,6 +1,8 @@
 /*
- * FreeRTOS Kernel V10.4.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.4.5
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -41,7 +43,7 @@ typedef void (* TaskFunction_t)( void * );
 #endif
 
 #ifndef pdTICKS_TO_MS
-	#define pdTICKS_TO_MS( ticks ) ( ( ( ( TickType_t )( ticks ) ) * ( TickType_t ) configTICK_RATE_HZ ) / ( TickType_t ) 1000 )
+    #define pdTICKS_TO_MS( ticks )        ( ( ( ( TickType_t )( ticks ) ) * ( TickType_t ) configTICK_RATE_HZ ) / ( TickType_t ) 1000 )
 #endif
 
 #define pdFALSE                                  ( ( BaseType_t ) 0 )

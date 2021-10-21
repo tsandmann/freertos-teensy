@@ -8,7 +8,7 @@
     "type": "git",
     "url": "https://github.com/tsandmann/freertos-teensy"
   },
-  "version": "10.4.1-9.1",
+  "version": "10.4.5-1",
   "authors": [
     {
       "name": "Richard Barry",

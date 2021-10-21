@@ -1,7 +1,8 @@
-// clang-format off
 /*
- * FreeRTOS Kernel V10.4.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.4.5
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -23,26 +24,25 @@
  * https://www.FreeRTOS.org
  * https://github.com/FreeRTOS
  *
- * 1 tab == 4 spaces!
  */
 
 
 #ifndef PORTMACRO_H
-#define PORTMACRO_H
+    #define PORTMACRO_H
 
-#if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
-#include "imxrt.h"
-#elif defined __MK64FX512__ || defined __MK66FX1M0__
-#include "kinetis.h"
-#else
-#error "Unsupported board"
-#endif
+    #if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
+        #include "imxrt.h"
+    #elif defined __MK64FX512__ || defined __MK66FX1M0__
+        #include "kinetis.h"
+    #else
+        #error "Unsupported board"
+    #endif
 
-#include "mpu_wrappers.h"
+    #include "mpu_wrappers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+    #ifdef __cplusplus
+        extern "C" {
+    #endif
 
 /*-----------------------------------------------------------
  * Port specific definitions.
@@ -70,14 +70,14 @@ extern "C" {
     #if ( configUSE_16_BIT_TICKS == 1 )
         typedef uint16_t     TickType_t;
         #define portMAX_DELAY              ( TickType_t ) 0xffff
-#else
+    #else
         typedef uint32_t     TickType_t;
         #define portMAX_DELAY              ( TickType_t ) 0xffffffffUL
 
-	/* 32-bit tick type on a 32-bit architecture, so reads of the tick count do
+/* 32-bit tick type on a 32-bit architecture, so reads of the tick count do
  * not need to be guarded with a critical section. */
         #define portTICK_TYPE_IS_ATOMIC    1
-#endif
+    #endif
 /*-----------------------------------------------------------*/
 
 /* Architecture specifics. */
@@ -93,22 +93,22 @@ extern "C" {
     {                                                   \
         /* Set a PendSV to request a context switch. */ \
         portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT; \
-																				\
+                                                        \
         /* Barriers are normally not required but do ensure the code is completely \
          * within the specified behaviour for the architecture. */ \
         __asm volatile ( "dsb" ::: "memory" );                     \
         __asm volatile ( "isb" );                                  \
-}
+    }
 
-    #define portNVIC_INT_CTRL_REG     SCB_ICSR
+    #define portNVIC_INT_CTRL_REG     ( SCB_ICSR )
     #define portNVIC_PENDSVSET_BIT    ( 1UL << 28UL )
-    #define portEND_SWITCHING_ISR( xSwitchRequired )    if( xSwitchRequired != pdFALSE ) portYIELD()
+    #define portEND_SWITCHING_ISR( xSwitchRequired )    do { if( xSwitchRequired != pdFALSE ) portYIELD(); } while( 0 )
     #define portYIELD_FROM_ISR( x )                     portEND_SWITCHING_ISR( x )
 /*-----------------------------------------------------------*/
 
 /* Critical section management. */
-extern void vPortEnterCritical( void );
-extern void vPortExitCritical( void );
+    extern void vPortEnterCritical( void );
+    extern void vPortExitCritical( void );
     #define portSET_INTERRUPT_MASK_FROM_ISR()         ulPortRaiseBASEPRI()
     #define portCLEAR_INTERRUPT_MASK_FROM_ISR( x )    vPortSetBASEPRI( x )
     #define portDISABLE_INTERRUPTS()                  vPortRaiseBASEPRI()
@@ -126,151 +126,151 @@ extern void vPortExitCritical( void );
 /*-----------------------------------------------------------*/
 
 /* Tickless idle/low power functionality. */
-#ifndef portSUPPRESS_TICKS_AND_SLEEP
-	extern void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime );
+    #ifndef portSUPPRESS_TICKS_AND_SLEEP
+        extern void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime );
         #define portSUPPRESS_TICKS_AND_SLEEP( xExpectedIdleTime )    vPortSuppressTicksAndSleep( xExpectedIdleTime )
-#endif
+    #endif
 /*-----------------------------------------------------------*/
 
 /* Architecture specific optimisations. */
-#ifndef configUSE_PORT_OPTIMISED_TASK_SELECTION
+    #ifndef configUSE_PORT_OPTIMISED_TASK_SELECTION
         #define configUSE_PORT_OPTIMISED_TASK_SELECTION    1
-#endif
+    #endif
 
-#if configUSE_PORT_OPTIMISED_TASK_SELECTION == 1
+    #if configUSE_PORT_OPTIMISED_TASK_SELECTION == 1
 
-	/* Generic helper function. */
-	__attribute__( ( always_inline ) ) static inline uint8_t ucPortCountLeadingZeros( uint32_t ulBitmap )
-	{
-	uint8_t ucReturn;
+/* Generic helper function. */
+        __attribute__( ( always_inline ) ) static inline uint8_t ucPortCountLeadingZeros( uint32_t ulBitmap )
+        {
+            uint8_t ucReturn;
 
-		__asm volatile ( "clz %0, %1" : "=r" ( ucReturn ) : "r" ( ulBitmap ) : "memory" );
+            __asm volatile ( "clz %0, %1" : "=r" ( ucReturn ) : "r" ( ulBitmap ) : "memory" );
 
-		return ucReturn;
-	}
+            return ucReturn;
+        }
 
-	/* Check the configuration. */
+/* Check the configuration. */
         #if ( configMAX_PRIORITIES > 32 )
-		#error configUSE_PORT_OPTIMISED_TASK_SELECTION can only be set to 1 when configMAX_PRIORITIES is less than or equal to 32.  It is very rare that a system requires more than 10 to 15 difference priorities as tasks that share a priority will time slice.
-	#endif
+            #error configUSE_PORT_OPTIMISED_TASK_SELECTION can only be set to 1 when configMAX_PRIORITIES is less than or equal to 32.  It is very rare that a system requires more than 10 to 15 difference priorities as tasks that share a priority will time slice.
+        #endif
 
-	/* Store/clear the ready priorities in a bit map. */
+/* Store/clear the ready priorities in a bit map. */
         #define portRECORD_READY_PRIORITY( uxPriority, uxReadyPriorities )    ( uxReadyPriorities ) |= ( 1UL << ( uxPriority ) )
         #define portRESET_READY_PRIORITY( uxPriority, uxReadyPriorities )     ( uxReadyPriorities ) &= ~( 1UL << ( uxPriority ) )
 
-	/*-----------------------------------------------------------*/
+/*-----------------------------------------------------------*/
 
         #define portGET_HIGHEST_PRIORITY( uxTopPriority, uxReadyPriorities )    uxTopPriority = ( 31UL - ( uint32_t ) ucPortCountLeadingZeros( ( uxReadyPriorities ) ) )
 
-#endif /* configUSE_PORT_OPTIMISED_TASK_SELECTION */
+    #endif /* configUSE_PORT_OPTIMISED_TASK_SELECTION */
 
 /*-----------------------------------------------------------*/
 
-#ifdef configASSERT
-	void vPortValidateInterruptPriority( void );
+    #ifdef configASSERT
+        void vPortValidateInterruptPriority( void );
         #define portASSERT_IF_INTERRUPT_PRIORITY_INVALID()    vPortValidateInterruptPriority()
-#endif
+    #endif
 
 /* portNOP() is not required by this port. */
-#define portNOP()
+    #define portNOP()
 
-#define portINLINE                  __inline
+    #define portINLINE              __inline
 
-#ifndef portFORCE_INLINE
-    #define portFORCE_INLINE        inline __attribute__( ( always_inline ) )
-#endif
+    #ifndef portFORCE_INLINE
+        #define portFORCE_INLINE    inline __attribute__( ( always_inline ) )
+    #endif
 
-#ifndef portDONT_DISCARD
-    #define portDONT_DISCARD        __attribute__( ( used ) )
-#endif
+    #ifndef portDONT_DISCARD
+        #define portDONT_DISCARD    __attribute__( ( used ) )
+    #endif
 
-portFORCE_INLINE static BaseType_t xPortIsInsideInterrupt( void )
-{
-uint32_t ulCurrentInterrupt;
-BaseType_t xReturn;
+    portFORCE_INLINE static BaseType_t xPortIsInsideInterrupt( void )
+    {
+        uint32_t ulCurrentInterrupt;
+        BaseType_t xReturn;
 
-	/* Obtain the number of the currently executing interrupt. */
+        /* Obtain the number of the currently executing interrupt. */
         __asm volatile ( "mrs %0, ipsr" : "=r" ( ulCurrentInterrupt )::"memory" );
 
-	if( ulCurrentInterrupt == 0 )
-	{
-		xReturn = pdFALSE;
-	}
-	else
-	{
-		xReturn = pdTRUE;
-	}
+        if( ulCurrentInterrupt == 0 )
+        {
+            xReturn = pdFALSE;
+        }
+        else
+        {
+            xReturn = pdTRUE;
+        }
 
-	return xReturn;
-}
+        return xReturn;
+    }
 
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static void vPortRaiseBASEPRI( void )
-{
-uint32_t ulNewBASEPRI;
+    portFORCE_INLINE static void vPortRaiseBASEPRI( void )
+    {
+        uint32_t ulNewBASEPRI;
 
-	__asm volatile
-	(
+        __asm volatile
+        (
             "	mov %0, %1												\n"\
             "	msr basepri, %0											\n"\
             "	isb														\n"\
             "	dsb														\n"\
             : "=r" ( ulNewBASEPRI ) : "i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "memory"
-	);
-}
+        );
+    }
 
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static uint32_t ulPortRaiseBASEPRI( void )
-{
-uint32_t ulOriginalBASEPRI, ulNewBASEPRI;
+    portFORCE_INLINE static uint32_t ulPortRaiseBASEPRI( void )
+    {
+        uint32_t ulOriginalBASEPRI, ulNewBASEPRI;
 
-	__asm volatile
-	(
+        __asm volatile
+        (
             "	mrs %0, basepri											\n"\
             "	mov %1, %2												\n"\
             "	msr basepri, %1											\n"\
             "	isb														\n"\
             "	dsb														\n"\
             : "=r" ( ulOriginalBASEPRI ), "=r" ( ulNewBASEPRI ) : "i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "memory"
-	);
+        );
 
-	/* This return will not be reached but is necessary to prevent compiler
+        /* This return will not be reached but is necessary to prevent compiler
          * warnings. */
-	return ulOriginalBASEPRI;
-}
+        return ulOriginalBASEPRI;
+    }
 /*-----------------------------------------------------------*/
 
-portFORCE_INLINE static void vPortSetBASEPRI( uint32_t ulNewMaskValue )
-{
-	__asm volatile
-	(
+    portFORCE_INLINE static void vPortSetBASEPRI( uint32_t ulNewMaskValue )
+    {
+        __asm volatile
+        (
             "	msr basepri, %0	"::"r" ( ulNewMaskValue ) : "memory"
-	);
-}
+        );
+    }
 /*-----------------------------------------------------------*/
 
-#define portMEMORY_BARRIER()     __asm volatile ( "dmb" ::: "memory" )
-#define portDATA_SYNC_BARRIER()  __asm volatile ( "dsb" ::: "memory" )
-#define portINSTR_SYNC_BARRIER() __asm volatile ( "isb" )
+    #define portMEMORY_BARRIER()     __asm volatile ( "" ::: "memory" )
+    #define portDATA_SYNC_BARRIER()  __asm volatile ( "dsb" ::: "memory" )
+    #define portINSTR_SYNC_BARRIER() __asm volatile ( "isb" )
 
-/*
- * Map to the memory management routines required for the port.
- */
-void* malloc( size_t ) __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1 ) ) );
-portFORCE_INLINE static void* pvPortMalloc( size_t xSize ) PRIVILEGED_FUNCTION __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1 ) ) );
-portFORCE_INLINE static void* pvPortMalloc( size_t xSize ) PRIVILEGED_FUNCTION {
-    return malloc( xSize );
-}
+    /*
+     * Map to the memory management routines required for the port.
+     */
+    void* malloc( size_t ) __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1 ) ) );
+    portFORCE_INLINE static void* pvPortMalloc( size_t xSize ) PRIVILEGED_FUNCTION __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1 ) ) );
+    portFORCE_INLINE static void* pvPortMalloc( size_t xSize ) PRIVILEGED_FUNCTION {
+        return malloc( xSize );
+    }
 
-void free( void* ) PRIVILEGED_FUNCTION;
-portFORCE_INLINE static void vPortFree( void* pv ) PRIVILEGED_FUNCTION {
-    free( pv );
-}
+    void free( void* );
+    portFORCE_INLINE static void vPortFree( void* pv ) PRIVILEGED_FUNCTION {
+        free( pv );
+    }
 
-#ifdef __cplusplus
-}
-#endif
+    #ifdef __cplusplus
+        }
+    #endif
 
 #endif /* PORTMACRO_H */

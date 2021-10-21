@@ -122,6 +122,8 @@ void setup() {
     while (::millis() < 2'000) {
     }
 
+    arduino::Serial.println(PSTR("\r\nrunning FreeRTOS kernel " tskKERNEL_VERSION_NUMBER "."));
+
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 8192, nullptr, configMAX_PRIORITIES - 1, nullptr);
     ::xTaskCreate(task3, "task3", 8192, nullptr, 3, nullptr);

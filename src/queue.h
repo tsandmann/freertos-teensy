@@ -1,6 +1,8 @@
 /*
- * FreeRTOS Kernel V10.4.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.4.5
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -1491,6 +1493,10 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex ) PRIVILEGED_FUNCTION;
  * does not effect the number of queues, semaphores and mutexes that can be
  * created - just the number that the registry can hold.
  *
+ * If vQueueAddToRegistry is called more than once with the same xQueue
+ * parameter, the registry will store the pcQueueName parameter from the
+ * most recent call to vQueueAddToRegistry.
+ *
  * @param xQueue The handle of the queue being added to the registry.  This
  * is the handle returned by a call to xQueueCreate().  Semaphore and mutex
  * handles can also be passed in here.
@@ -1572,7 +1578,7 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex ) PRIVILEGED_FUNCTION;
  * or semaphores contained in the set is in a state where a queue read or
  * semaphore take operation would be successful.
  *
- * Note 1:  See the documentation on http://wwwFreeRTOS.org/RTOS-queue-sets.html
+ * Note 1:  See the documentation on https://www.FreeRTOS.org/RTOS-queue-sets.html
  * for reasons why queue sets are very rarely needed in practice as there are
  * simpler methods of blocking on multiple objects.
  *
@@ -1663,7 +1669,7 @@ BaseType_t xQueueRemoveFromSet( QueueSetMemberHandle_t xQueueOrSemaphore,
  * See FreeRTOS/Source/Demo/Common/Minimal/QueueSet.c for an example using this
  * function.
  *
- * Note 1:  See the documentation on http://wwwFreeRTOS.org/RTOS-queue-sets.html
+ * Note 1:  See the documentation on https://www.FreeRTOS.org/RTOS-queue-sets.html
  * for reasons why queue sets are very rarely needed in practice as there are
  * simpler methods of blocking on multiple objects.
  *
