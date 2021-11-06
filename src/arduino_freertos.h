@@ -145,11 +145,11 @@ using ::Serial7;
 #ifdef ARDUINO_TEENSY41
 using ::Serial8;
 #endif
-#ifdef _SPI_H_INCLUDED
+#if defined(__has_include) && __has_include("SPI.h")
 using ::SPI;
 using ::SPI1;
 using ::SPI2;
-#endif // _SPI_H_INCLUDED
+#endif // SPI.h
 using ::Stream;
 using ::TwoWire;
 using ::Wire;
