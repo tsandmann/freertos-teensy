@@ -218,10 +218,10 @@ void unused_isr_freertos() {
     __asm(".syntax unified      \n"
           "MOV R1, LR           \n"
           "TST R1, #4           \n"
-          "BEQ _MSP             \n"
+          "BEQ 1f               \n"
           "MRS R0, PSP          \n"
           "B HardFault_HandlerC \n"
-          "_MSP:                \n"
+          "1:                   \n"
           "MRS R0, MSP          \n"
           "B HardFault_HandlerC \n"
           ".syntax divided      \n");
