@@ -54,6 +54,8 @@ extern uint8_t* _g_current_heap_end;
 uint32_t set_arm_clock(uint32_t) { // dummy
     return F_CPU;
 }
+
+void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup);
 } // extern C
 
 
@@ -224,9 +226,11 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[11] = vPortSVCHandler;
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
+    __NVIC_SetPriorityGrouping(0);
 
     /* configure SysTick to interrupt at the requested rate */
-    static_assert((static_cast<int32_t>(configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
+    static_assert(
+        (static_cast<int32_t>(configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");
     SYST_RVR = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
     SYST_CSR = SYST_CSR_TICKINT | SYST_CSR_ENABLE;
 
@@ -242,8 +246,6 @@ void vPortSetupTimerInterrupt() {
     freertos::setup_event_responder();
 
     init_retarget_locks();
-
-    ::xTaskResumeAll();
 
     if (DEBUG) {
         EXC_PRINTF(PSTR("vPortSetupTimerInterrupt() done.\r\n"));

@@ -63,6 +63,8 @@ extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern volatile uint32_t scale_cpu_cycles_to_microseconds;
 extern uint32_t systick_safe_read;
+
+void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup);
 } // extern C
 
 
@@ -255,6 +257,7 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[11] = vPortSVCHandler;
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
+    __NVIC_SetPriorityGrouping(0);
 
     portDATA_SYNC_BARRIER();
     portINSTR_SYNC_BARRIER();
@@ -277,8 +280,6 @@ void vPortSetupTimerInterrupt() {
     freertos::setup_event_responder();
 
     init_retarget_locks();
-
-    ::xTaskResumeAll();
 
     if (DEBUG) {
         EXC_PRINTF_EARLY(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
@@ -446,6 +447,9 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     portDATA_SYNC_BARRIER();
     portINSTR_SYNC_BARRIER();
     portDISABLE_INTERRUPTS();
+    NVIC_SET_PRIORITY(IRQ_USB1, (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) << (8 - configPRIO_BITS));
+
+    static_assert((configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) > 0, "invalid interrupt priority config");
 }
 } // extern C
 #endif // ARDUINO_TEENSY40 || ARDUINO_TEENSY41

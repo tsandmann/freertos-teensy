@@ -33,6 +33,7 @@
 #include <unwind.h>
 #include <tuple>
 #include <cstdarg>
+#include <atomic>
 
 #include "avr/pgmspace.h"
 #include "teensy.h"
@@ -165,14 +166,13 @@ FLASHMEM __attribute__((weak)) void serialport_flush() {
                 priority bits (__NVIC_PRIO_BITS), the smallest possible priority group is set.
   \param [in]   PriorityGroup  Priority grouping field.
  */
-static inline void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
-    uint32_t reg_value;
-    uint32_t PriorityGroupTmp = (PriorityGroup & (uint32_t) 0x07UL); /* only values 0..7 are used */
+FLASHMEM void __NVIC_SetPriorityGrouping(uint32_t PriorityGroup) {
+    const uint32_t PriorityGroupTmp { (PriorityGroup & static_cast<uint32_t>(0x7)) }; // only values 0..7 are used
 
-    reg_value = SCB_AIRCR; /* read old register configuration */
-    reg_value &= ~((uint32_t) (SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); /* clear bits to change */
-    reg_value =
-        (reg_value | ((uint32_t) 0x5FAUL << SCB_AIRCR_VECTKEY_Pos) | (PriorityGroupTmp << SCB_AIRCR_PRIGROUP_Pos)); /* Insert write key and priority group */
+    uint32_t reg_value { SCB_AIRCR }; // read old register configuration
+    reg_value &= ~(static_cast<uint32_t>(SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_PRIGROUP_Msk)); // clear bits to change
+    /* Insert write key and priority group */
+    reg_value = (reg_value | (static_cast<uint32_t>(0x5FAUL) << SCB_AIRCR_VECTKEY_Pos) | (PriorityGroupTmp << SCB_AIRCR_PRIGROUP_Pos));
     SCB_AIRCR = reg_value;
 }
 
@@ -215,6 +215,11 @@ FLASHMEM _Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth) {
  * @param[in] expr: Expression that failed as C-string
  */
 FLASHMEM void assert_blink(const char* file, int line, const char* func, const char* expr) {
+    portDISABLE_INTERRUPTS();
+#if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
+    NVIC_SET_PRIORITY(IRQ_USB1, (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) << (8 - configPRIO_BITS));
+#endif // ARDUINO_TEENSY40 || ARDUINO_TEENSY41
+
     EXC_PRINTF(PSTR("\r\nASSERT in [%s:%u]\t"), file, line);
     EXC_PRINTF(PSTR("%s(): "), func);
     EXC_PRINTF(PSTR("%s\r\n"), expr);
@@ -222,11 +227,8 @@ FLASHMEM void assert_blink(const char* file, int line, const char* func, const c
     EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
     EXC_FLUSH();
 
-    __disable_irq();
-    portINSTR_SYNC_BARRIER();
     int depth {};
     _Unwind_Backtrace(&trace_fcn, &depth);
-    __enable_irq();
     EXC_PRINTF(PSTR("\r\n"));
 
     freertos::error_blink(1);
@@ -271,33 +273,6 @@ FLASHMEM void print_ram_usage() {
 } // namespace freertos
 
 extern "C" {
-void startup_late_hook() FLASHMEM;
-void startup_late_hook() {
-    if (DEBUG) {
-        EXC_PRINTF(PSTR("startup_late_hook()\r\n"));
-        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
-    }
-    __disable_irq();
-    portINSTR_SYNC_BARRIER();
-    __NVIC_SetPriorityGrouping(0);
-
-    /* increase systick priority before kernel is started to allow early malloc() calls */
-    static constexpr uint32_t SYSTICK_PRIO { ((configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) << (8 - configPRIO_BITS)) };
-    static constexpr uint32_t PENDSV_PRIO { configKERNEL_INTERRUPT_PRIORITY };
-    SCB_SHPR3 = (SYSTICK_PRIO << 24) | (PENDSV_PRIO << 16);
-
-#if defined USB_IRQ_PRIO && (defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41)
-    NVIC_SET_PRIORITY(IRQ_USB1, USB_IRQ_PRIO);
-#endif
-    portINSTR_SYNC_BARRIER();
-    __enable_irq();
-    ::vTaskSuspendAll();
-    if (DEBUG) {
-        EXC_PRINTF(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
-        EXC_PRINTF(PSTR("startup_late_hook() done.\r\n"));
-    }
-}
-
 void setup_systick_with_timer_events() {}
 
 void event_responder_set_pend_sv() {
@@ -330,60 +305,104 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     freertos::error_blink(3);
 }
 
-#ifdef PLATFORMIO
+#ifdef PLATFORMIO // FIXME: update of teensy cores library necessary to work with Teensyduino
 #if configUSE_MALLOC_FAILED_HOOK == 1
 static FLASHMEM void vApplicationMallocFailedHook() {
     freertos::error_blink(2);
 }
 #endif // configUSE_MALLOC_FAILED_HOOK
 
-// FIXME: needs update of teensy cores library
-void* _sbrk(ptrdiff_t incr) { // FIXME: flashmem?
+void* _sbrk_r(struct _reent* p_reent, ptrdiff_t incr) {
     static_assert(portSTACK_GROWTH == -1, "Stack growth down assumed");
 
     if (DEBUG) {
-        EXC_PRINTF(PSTR("_sbrk(%u)\r\n"), incr);
-        EXC_PRINTF(PSTR("current_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(_g_current_heap_end));
-        EXC_PRINTF(PSTR("_ebss=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_ebss));
+        EXC_PRINTF(PSTR("_sbrk_r(%d): "), incr);
+        EXC_PRINTF(PSTR("current_heap_end=0x%x "), reinterpret_cast<uintptr_t>(_g_current_heap_end));
+        EXC_PRINTF(PSTR("_ebss=0x%x "), reinterpret_cast<uintptr_t>(&_ebss));
         EXC_PRINTF(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
     }
 
+    const auto primask = __get_PRIMASK();
+    __disable_irq();
     void* previous_heap_end { _g_current_heap_end };
 
     if ((reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
         || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
-        EXC_PRINTF(PSTR("_sbrk(%u): no mem available.\r\n"), incr);
+        __set_PRIMASK(primask);
+
+        EXC_PRINTF(PSTR("_sbrk_r(%d): no mem available.\r\n"), incr);
+
 #if configUSE_MALLOC_FAILED_HOOK == 1
         ::vApplicationMallocFailedHook();
+        (void) p_reent;
 #else
-        _impure_ptr->_errno = ENOMEM;
+        p_reent->_errno = ENOMEM;
 #endif
+
         return reinterpret_cast<void*>(-1); // the malloc-family routine that called sbrk will return 0
     }
 
     _g_current_heap_end += incr;
+    __set_PRIMASK(primask);
+
     return previous_heap_end;
 }
+
+void* sbrk(ptrdiff_t incr) {
+    return _sbrk_r(_impure_ptr, incr);
+}
+void* _sbrk(ptrdiff_t incr) {
+    return sbrk(incr);
+};
 #endif // ! PLATFORMIO
 
-extern UBaseType_t uxCriticalNesting;
+static std::atomic<uint32_t> malloc_nesting {};
+static uint32_t malloc_irq_mask { ~0U };
 void __malloc_lock(struct _reent*) {
-    portENTER_CRITICAL();
+    const auto old_nesting { malloc_nesting.fetch_add(1) };
+
+    if (__builtin_expect(old_nesting, 0) == 0) {
+        configASSERT(malloc_irq_mask == ~0U);
+        malloc_irq_mask = ::ulPortRaiseBASEPRI();
+        if (DEBUG) {
+            EXC_PRINTF(PSTR("__malloc_lock(): BASEPRI was 0x%x\r\n"), malloc_irq_mask);
+        }
+    }
+
+    if (DEBUG) {
+        EXC_PRINTF(PSTR("__malloc_lock(): malloc_nesting=%u\r\n"), malloc_nesting.load());
+    }
 };
 
 void __malloc_unlock(struct _reent*) {
-    portEXIT_CRITICAL();
+    const auto old_nesting { malloc_nesting.load() };
+    configASSERT(old_nesting);
+    malloc_nesting = old_nesting - 1;
+
+    if (__builtin_expect(old_nesting, 1) == 1) {
+        configASSERT(malloc_irq_mask != ~0U);
+        const auto tmp { malloc_irq_mask };
+        malloc_irq_mask = ~0U;
+        ::vPortSetBASEPRI(tmp);
+
+        if (DEBUG) {
+            EXC_PRINTF(PSTR("__malloc_unlock(): BASEPRI set to 0x%x\r\n"), tmp);
+        }
+    }
+
+    if (DEBUG) {
+        EXC_PRINTF(PSTR("__malloc_unlock(): malloc_nesting=%u\r\n"), malloc_nesting.load());
+    }
 };
 
 // newlib also requires implementing locks for the application's environment memory space,
 // accessed by newlib's setenv() and getenv() functions.
-// As these are trivial functions, momentarily suspend task switching (rather than semaphore).
-void __env_lock() { // FIXME: check
-    portENTER_CRITICAL();
+void __env_lock() {
+    ::vTaskSuspendAll();
 };
 
-void __env_unlock() { // FIXME: check
-    portEXIT_CRITICAL();
+void __env_unlock() {
+    ::xTaskResumeAll();
 };
 
 int _getpid() {

@@ -110,8 +110,6 @@ extern "C" {
 #endif
 #define configIDLE_TASK_NAME                        "IDLE"
 
-#define USB_IRQ_PRIO                                16
-
 /* Define to trap errors during development. */
 #ifdef NDEBUG
 #define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0

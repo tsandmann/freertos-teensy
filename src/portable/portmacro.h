@@ -1,3 +1,5 @@
+// clang-format off
+
 /*
  * FreeRTOS Kernel V10.4.5
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
@@ -236,8 +238,6 @@
             : "=r" ( ulOriginalBASEPRI ), "=r" ( ulNewBASEPRI ) : "i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "memory"
         );
 
-        /* This return will not be reached but is necessary to prevent compiler
-         * warnings. */
         return ulOriginalBASEPRI;
     }
 /*-----------------------------------------------------------*/
@@ -267,6 +267,17 @@
     void free( void* );
     portFORCE_INLINE static void vPortFree( void* pv ) PRIVILEGED_FUNCTION {
         free( pv );
+    }
+
+    portFORCE_INLINE static uint32_t __get_PRIMASK(void) {
+        uint32_t result;
+
+        __asm volatile ("MRS %0, primask" : "=r" (result) );
+        return result;
+    }
+
+    portFORCE_INLINE static void __set_PRIMASK(uint32_t pri_mask) {
+        __asm volatile ("MSR primask, %0" : : "r" (pri_mask) : "memory");
     }
 
     #ifdef __cplusplus
