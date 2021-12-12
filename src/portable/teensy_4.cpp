@@ -324,6 +324,7 @@ static void mcu_hardfault() {
     freertos::error_blink(4);
 }
 
+extern uint32_t g_trace_lr;
 
 void HardFault_HandlerC(unsigned int* hardfault_args) FLASHMEM __attribute__((used));
 void HardFault_HandlerC(unsigned int* hardfault_args) {
@@ -424,7 +425,6 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     EXC_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
 
     EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
-    extern uint32_t g_trace_lr;
     phase2_vrs pre_signal_state = {};
     pre_signal_state.demand_save_flags = 0;
     pre_signal_state.core.r[0] = hardfault_args[0];
@@ -452,4 +452,56 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     static_assert((configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY - 1) > 0, "invalid interrupt priority config");
 }
 } // extern C
+
+namespace freertos {
+FLASHMEM void print_stack_trace(TaskHandle_t task) {
+    StaticTask_t* p_tcb { reinterpret_cast<StaticTask_t*>(task) };
+    StackType_t** p_stack_args { reinterpret_cast<StackType_t**>(task) };
+    configASSERT(p_stack_args);
+
+    StackType_t* stack_args { *p_stack_args };
+    configASSERT(stack_args);
+
+    EXC_PRINTF(PSTR("\tstack_args=0x%x\r\n"), stack_args);
+    EXC_PRINTF(PSTR("\tpxTopOfStack=0x%x\r\n"), p_tcb->pxDummy1);
+    EXC_PRINTF(PSTR("\tpxStack=0x%x\r\n"), p_tcb->pxDummy6);
+    EXC_PRINTF(PSTR("\tpxEndOfStack=0x%x\r\n"), p_tcb->pxDummy8);
+
+    const size_t sp_idx { stack_args[8] & 0x10 ? 9U : 25U };
+
+    EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
+    phase2_vrs pre_signal_state = {};
+    pre_signal_state.demand_save_flags = (stack_args[8] & 0x10) == 0 ? 0 : ~0;
+    pre_signal_state.core.r[4] = stack_args[0];
+    pre_signal_state.core.r[5] = stack_args[1];
+    pre_signal_state.core.r[6] = stack_args[2];
+    pre_signal_state.core.r[7] = stack_args[3];
+    pre_signal_state.core.r[8] = stack_args[4];
+    pre_signal_state.core.r[9] = stack_args[5];
+    pre_signal_state.core.r[10] = stack_args[6];
+    pre_signal_state.core.r[11] = stack_args[7];
+    pre_signal_state.core.r[14] = stack_args[8];
+
+    pre_signal_state.core.r[0] = stack_args[sp_idx];
+    pre_signal_state.core.r[1] = stack_args[sp_idx + 1];
+    pre_signal_state.core.r[2] = stack_args[sp_idx + 2];
+    pre_signal_state.core.r[3] = stack_args[sp_idx + 3];
+    pre_signal_state.core.r[12] = stack_args[sp_idx + 4];
+    pre_signal_state.core.r[14] = stack_args[sp_idx + 6];
+    pre_signal_state.core.r[15] = 0;
+    pre_signal_state.core.r[13] = reinterpret_cast<uintptr_t>(&stack_args[sp_idx + 8]);
+    if (stack_args[sp_idx + 7] & 0x200) {
+        pre_signal_state.core.r[13] += sizeof(StackType_t); // adjust stack pointer alignment
+    }
+    if ((stack_args[8] & 0x10) == 0) {
+        pre_signal_state.core.r[13] += 18U * sizeof(StackType_t); // extended stack frame
+    }
+    g_trace_lr = stack_args[sp_idx + 5];
+
+    int depth {};
+    __gnu_Unwind_Backtrace(trace_fcn, &depth, &pre_signal_state);
+    EXC_PRINTF(PSTR("\n"));
+    EXC_FLUSH();
+}
+} // namespace freertos
 #endif // ARDUINO_TEENSY40 || ARDUINO_TEENSY41

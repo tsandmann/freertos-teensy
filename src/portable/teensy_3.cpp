@@ -265,4 +265,10 @@ void vApplicationTickHook() {
 }
 #endif // configUSE_TICK_HOOK
 } // extern C
+
+namespace freertos {
+void print_stack_trace(TaskHandle_t) {
+    // not implemented
+}
+} // namespace freertos
 #endif // __MK64FX512__ || __MK66FX1M0__
