@@ -81,13 +81,14 @@ int __gthread_cond_timedwait(__gthread_cond_t* cond, __gthread_mutex_t* mutex, c
     timeval now {};
     gettimeofday(&now, NULL);
 
-    auto ms { static_cast<int32_t>((*abs_timeout - now).milliseconds()) };
-    if (ms < 0) {
-        ms = 0;
+    auto t_us { static_cast<int32_t>((*abs_timeout - now).microseconds()) };
+    if (t_us < 0) {
+        t_us = 0;
     }
 
     __gthread_mutex_unlock(mutex);
-    const auto fTimeout { 0 == ulTaskNotifyTakeIndexed(configTASK_NOTIFICATION_ARRAY_ENTRIES - 1, pdTRUE, pdMS_TO_TICKS(ms)) };
+    // add 2 ticks to avoid rounding error because of tick resolution
+    const auto fTimeout { 0 == ulTaskNotifyTakeIndexed(configTASK_NOTIFICATION_ARRAY_ENTRIES - 1, pdTRUE, pdUS_TO_TICKS(t_us) + 2) }; 
     __gthread_mutex_lock(mutex);
 
     int result {};

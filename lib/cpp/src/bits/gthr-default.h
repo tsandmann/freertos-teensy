@@ -43,6 +43,7 @@
 #include "condition_variable.h"
 #include "gthr_key.h"
 
+#include <ctime>
 #include <sys/time.h>
 
 
@@ -122,22 +123,26 @@ static inline int __gthread_recursive_mutex_unlock(__gthread_recursive_mutex_t* 
 
 
 struct __gthread_time_t {
-    long sec;
+    std::time_t sec;
     long nsec;
     int64_t milliseconds() const {
-        return static_cast<int64_t>(sec) * 1'000 + (nsec + 500'000) / 1'000'000;
+        return static_cast<int64_t>(sec) * 1'000LL + nsec / 1'000'000LL;
+    }
+
+    int64_t microseconds() const {
+        return static_cast<int64_t>(sec) * 1'000'000LL + nsec / 1'000LL;
     }
 };
 
 static inline __gthread_time_t operator-(const __gthread_time_t& lhs, const timeval& rhs) {
-    long s { lhs.sec - rhs.tv_sec };
-    int64_t ns { lhs.nsec - rhs.tv_usec * 1'000 };
+    auto s { lhs.sec - rhs.tv_sec };
+    int64_t ns { lhs.nsec - rhs.tv_usec * 1'000LL };
     if (ns < 0) {
         --s;
-        ns += 1'000'000'000;
-    } else if (ns > 1'000'000'000) {
+        ns += 1'000'000'000LL;
+    } else if (ns > 1'000'000'000LL) {
         ++s;
-        ns -= 1'000'000'000;
+        ns -= 1'000'000'000LL;
     }
 
     return __gthread_time_t { s, static_cast<long>(ns) };
@@ -147,22 +152,24 @@ static inline int __gthread_mutex_timedlock(__gthread_mutex_t* m, const __gthrea
     timeval now {};
     gettimeofday(&now, NULL);
 
-    auto t { static_cast<int32_t>((*abs_timeout - now).milliseconds()) };
-    if (t < 0) {
-        t = 0;
+    auto t_us { (*abs_timeout - now).microseconds() };
+    if (t_us < 0) {
+        t_us = 0;
     }
-    return (::xSemaphoreTake(*m, pdMS_TO_TICKS(t)) == pdTRUE) ? 0 : 1;
+    // add 2 ticks to avoid rounding error because of tick resolution
+    return (::xSemaphoreTake(*m, pdUS_TO_TICKS(t_us) + 2) == pdTRUE) ? 0 : 1;
 }
 
 static inline int __gthread_recursive_mutex_timedlock(__gthread_recursive_mutex_t* m, const __gthread_time_t* abs_timeout) {
     timeval now {};
     gettimeofday(&now, NULL);
 
-    auto t { static_cast<int32_t>((*abs_timeout - now).milliseconds()) };
-    if (t < 0) {
-        t = 0;
+    auto t_us { (*abs_timeout - now).microseconds() };
+    if (t_us < 0) {
+        t_us = 0;
     }
-    return (::xSemaphoreTakeRecursive(*m, pdMS_TO_TICKS(t)) == pdTRUE) ? 0 : 1;
+    // add 2 ticks to avoid rounding error because of tick resolution
+    return (::xSemaphoreTakeRecursive(*m, pdUS_TO_TICKS(t_us) + 2) == pdTRUE) ? 0 : 1;
 }
 
 // All functions returning int should return zero on success or the error number.  If the operation is not supported, -1 is returned.
