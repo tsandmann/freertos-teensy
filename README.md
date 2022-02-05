@@ -1,6 +1,6 @@
 # FreeRTOS Port for Teensy 3.5, 3.6, 4.0, 4.1
 
-This is a basic port of [FreeRTOS][FreeRTOS] for the [Teensy 3.5][Teensy], [Teensy 3.6][Teensy], [Teensy 4.0][Teensy] and [Teensy 4.1][Teensy] boards. 
+This is a basic port of [FreeRTOS][FreeRTOS] for the [Teensy 3.5][Teensy], [Teensy 3.6][Teensy], [Teensy 4.0][Teensy] and [Teensy 4.1][Teensy] boards.
 
 ## Introduction
 
@@ -8,7 +8,7 @@ To make FreeRTOS work on the teensy boards I had to adjust some minor parts of t
 
 ### Notice
 
-Consider this as experimental code and work in progress. *If it breaks, you get to keep both pieces.* 
+Consider this as experimental code and work in progress. *If it breaks, you get to keep both pieces.*
 
 ## Current Limitations
 
@@ -41,6 +41,7 @@ There is a test version available which can be used with Teensyduino. If you wan
 
 Currently there are the following limitations for Teensyduino projects:
 
+ - `malloc()` is used for the stack of dynamic tasks. On Teensy 4.x the Teensy Arduino core library uses the (slightly slower) not-tightly coupled RAM for `malloc()`'s heap, which may impact the performance of stack-operations.
  - There is no support for C++'s [`std::thread`][StdThread], [`std::jthread`][StdThread] or [Futures][StdThread] (the compiler provided by Teensyduino is too old for this).
  - If the sketch (or any included library) uses the `EventResponder` [class](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L67), the `EventResponder::attachInterrupt()` [variant](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L111) must not be used, otherwise FreeRTOS will stop working. An update of the Teenys core library is required to make this work.
  - [`configUSE_MALLOC_FAILED_HOOK`](https://www.freertos.org/a00110.html#configUSE_MALLOC_FAILED_HOOK) has no effect, `vApplicationMallocFailedHook()` will not be executed if `malloc()` fails.
