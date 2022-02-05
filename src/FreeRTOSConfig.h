@@ -110,8 +110,6 @@ extern "C" {
 #endif
 #define configIDLE_TASK_NAME                        "IDLE"
 
-#define USB_IRQ_PRIO                                16
-
 /* Define to trap errors during development. */
 #ifdef NDEBUG
 #define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0
@@ -140,11 +138,11 @@ void assert_blink(const char*, int, const char*, const char*) __attribute__((nor
         assert_blink((const char*) _file_, __LINE__, __PRETTY_FUNCTION__, #_msg);   \
     }
 #endif // __cplusplus
-#define configASSERT(_e) \
-    if (_e) {            \
-        (void) 0;        \
-    } else {             \
-        ASSERT_LOG(_e);  \
+#define configASSERT(_e)               \
+    if (__builtin_expect(!!(_e), 1)) { \
+        (void) 0;                      \
+    } else {                           \
+        ASSERT_LOG(_e);                \
     }
 #ifdef PRINT_DEBUG_STUFF
 void putchar_debug(char);

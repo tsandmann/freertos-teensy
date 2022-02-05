@@ -124,4 +124,6 @@ static inline uint32_t get_ms() __attribute__((always_inline, unused));
 static inline uint32_t get_ms() {
     return ::millis();
 }
+
+void print_stack_trace(TaskHandle_t task);
 } // namespace freertos
