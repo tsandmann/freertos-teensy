@@ -254,6 +254,7 @@ void vPortSetupTimerInterrupt() {
     }
 
     /* override arduino vector table entries */
+    _VectorsRam[0] = reinterpret_cast<void (*)()>(&_estack);
     _VectorsRam[11] = vPortSVCHandler;
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
