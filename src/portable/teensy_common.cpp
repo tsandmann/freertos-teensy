@@ -283,7 +283,14 @@ void event_responder_set_pend_sv() {
 
 FLASHMEM void yield() {
     if (::xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && freertos::g_yield_task) {
-        ::xTaskNotify(freertos::g_yield_task, 0, eNoAction);
+        if (xPortIsInsideInterrupt() == pdTRUE) {
+            BaseType_t higher_woken { pdFALSE };
+            ::xTaskNotifyFromISR(freertos::g_yield_task, 0, eNoAction, &higher_woken);
+            portYIELD_FROM_ISR(higher_woken);
+            portDATA_SYNC_BARRIER(); // mitigate arm errata #838869
+        } else {
+            ::xTaskNotify(freertos::g_yield_task, 0, eNoAction);
+        }
     } else {
         freertos::yield();
     }
