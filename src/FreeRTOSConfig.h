@@ -1,8 +1,8 @@
 // clang-format off
 
 /*
- * FreeRTOS Kernel V10.4.6
- * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.5.0
+ * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -24,7 +24,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * https://www.FreeRTOS.org
- * https://github.com/FreeRTOS
+ * https://aws.amazon.com/freertos
  *
  */
 
@@ -169,6 +169,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelay                          1
 #define INCLUDE_eTaskGetState                       1
 #define INCLUDE_xTimerPendFunctionCall              1
+#define INCLUDE_xSemaphoreGetMutexHolder            0
 #define INCLUDE_xTaskGetSchedulerState              1
 #define INCLUDE_xTaskGetCurrentTaskHandle           1
 #define INCLUDE_uxTaskGetStackHighWaterMark         1

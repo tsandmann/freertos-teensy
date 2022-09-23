@@ -113,7 +113,7 @@ FLASHMEM __attribute__((noinline)) void setup() {
 #endif
     arduino::delay(5'000);
 
-    arduino::Serial.println(PSTR("\r\nrunning FreeRTOS kernel " tskKERNEL_VERSION_NUMBER "."));
+    arduino::Serial.println(PSTR("\r\nRunning FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ "."));
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 2048, nullptr, 2, nullptr);
