@@ -314,7 +314,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 
 #ifdef PLATFORMIO // FIXME: update of teensy cores library necessary to work with Teensyduino
 #if configUSE_MALLOC_FAILED_HOOK == 1
-static FLASHMEM void vApplicationMallocFailedHook() {
+FLASHMEM void vApplicationMallocFailedHook() {
     freertos::error_blink(2);
 }
 #endif // configUSE_MALLOC_FAILED_HOOK
