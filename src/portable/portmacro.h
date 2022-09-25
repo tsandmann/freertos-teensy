@@ -264,20 +264,26 @@
         return malloc( xSize );
     }
 
+    void* calloc( size_t, size_t ) __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1, 2 ) ) );
+    portFORCE_INLINE static void* pvPortCalloc( size_t xNum, size_t xSize ) PRIVILEGED_FUNCTION __attribute__( ( __malloc__, __warn_unused_result__, __alloc_size__( 1, 2 ) ) );
+    portFORCE_INLINE static void* pvPortCalloc( size_t xNum, size_t xSize ) PRIVILEGED_FUNCTION {
+        return calloc( xNum, xSize );
+    }
+
     void free( void* );
     portFORCE_INLINE static void vPortFree( void* pv ) PRIVILEGED_FUNCTION {
         free( pv );
     }
 
-    portFORCE_INLINE static uint32_t __get_PRIMASK(void) {
+    portFORCE_INLINE static uint32_t __get_PRIMASK( void ) {
         uint32_t result;
 
-        __asm volatile ("MRS %0, primask" : "=r" (result) );
+        __asm volatile( "MRS %0, primask" : "=r" ( result ) );
         return result;
     }
 
-    portFORCE_INLINE static void __set_PRIMASK(uint32_t pri_mask) {
-        __asm volatile ("MSR primask, %0" : : "r" (pri_mask) : "memory");
+    portFORCE_INLINE static void __set_PRIMASK( uint32_t pri_mask ) {
+        __asm volatile( "MSR primask, %0" : : "r" ( pri_mask ) : "memory" );
     }
 
     #ifdef __cplusplus
