@@ -416,6 +416,7 @@ int _getpid() {
     return reinterpret_cast<int>(::xTaskGetCurrentTaskHandle());
 }
 
+#if TEENSYDUINO < 158
 FLASHMEM int _gettimeofday(timeval* tv, void*) {
     const auto now_us { freertos::get_us() };
 #if defined(__has_include) && __has_include("freertos_time.h")
@@ -428,6 +429,7 @@ FLASHMEM int _gettimeofday(timeval* tv, void*) {
     timeradd(&off, &now, tv);
     return 0;
 }
+#endif
 
 FLASHMEM size_t xPortGetFreeHeapSize() {
     const struct mallinfo mi = ::mallinfo();
