@@ -51,6 +51,9 @@ class SPI;
 class SPI1;
 class SPI2;
 #endif
+#if defined(__has_include) && __has_include("FS.h")
+#include "FS.h"
+#endif
 #if defined(__has_include) && __has_include("SdFat.h")
 #include "SdFat.h"
 #endif
