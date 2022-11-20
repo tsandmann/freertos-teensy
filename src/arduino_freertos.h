@@ -81,8 +81,6 @@ class SPI2;
 #undef stricmp
 #undef sei
 #undef cli
-#undef interrupts
-#undef noInterrupts
 #undef clockCyclesPerMicrosecond
 #undef clockCyclesToMicroseconds
 #undef microsecondsToClockCycles
