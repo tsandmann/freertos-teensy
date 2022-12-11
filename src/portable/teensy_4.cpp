@@ -151,14 +151,15 @@ FLASHMEM void delay_ms(const uint32_t ms) {
     portINSTR_SYNC_BARRIER();
 }
 
-FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
+FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
     const size_t blk_cnt { reinterpret_cast<uintptr_t>(&_itcm_block_count) };
     const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - reinterpret_cast<uint8_t*>(0x20'000'000)) + blk_cnt * 32'768U };
     const size_t bss { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_ebss) - reinterpret_cast<uint8_t*>(&_sbss)) };
     const size_t data { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_edata) - reinterpret_cast<uint8_t*>(&_sdata)) };
     const size_t system_free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - _g_current_heap_end) - 8'192U };
     const auto info { mallinfo() };
-    const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, data, bss, info.uordblks, system_free, ram_size };
+    const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, data, bss, info.uordblks, system_free,
+        blk_cnt * 32'768U, ram_size };
     return ret;
 }
 
@@ -229,6 +230,12 @@ void unused_isr_freertos() {
           ".syntax divided      \n");
 }
 
+#if (configUSE_TICKLESS_IDLE == 1)
+extern uint32_t ulTimerCountsForOneTick;
+extern uint32_t xMaximumPossibleSuppressedTicks;
+extern uint32_t ulStoppedTimerCompensation;
+#endif /* configUSE_TICKLESS_IDLE */
+
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
         EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt()\r\n"));
@@ -273,8 +280,8 @@ void vPortSetupTimerInterrupt() {
 #if configUSE_TICKLESS_IDLE == 1
     { // FIXME: doesn't work
         ulTimerCountsForOneTick = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ);
-        xMaximumPossibleSuppressedTicks = portMAX_24_BIT_NUMBER / ulTimerCountsForOneTick;
-        ulStoppedTimerCompensation = portMISSED_COUNTS_FACTOR / (configCPU_CLOCK_HZ / configSYSTICK_CLOCK_HZ);
+        xMaximumPossibleSuppressedTicks = 0xffffffUL / ulTimerCountsForOneTick;
+        ulStoppedTimerCompensation = 94UL / (configCPU_CLOCK_HZ / configSYSTICK_CLOCK_HZ);
     }
 #endif // configUSE_TICKLESS_IDLE
 

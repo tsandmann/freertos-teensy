@@ -150,11 +150,11 @@ void delay_ms(const uint32_t ms) {
     }
 }
 
-std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
+std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage() {
     const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_estack) - reinterpret_cast<uint8_t*>(0x1fff'0000)) };
     const size_t system_free { (reinterpret_cast<uint8_t*>(&_estack) - _g_current_heap_end) - 1024UL };
     const auto info { mallinfo() };
-    const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, 0, 0, info.uordblks, system_free, ram_size };
+    const std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ret { system_free + info.fordblks, 0, 0, info.uordblks, system_free, 0, ram_size };
     return ret;
 }
 
@@ -237,9 +237,9 @@ void vPortSetupTimerInterrupt() {
 /* calculate the constants required to configure the tick interrupt */
 #if configUSE_TICKLESS_IDLE == 1
     { // FIXME: doesn't work
-        ulTimerCountsForOneTick = (configCPU_CLOCK_HZ / configTICK_RATE_HZ);
-        xMaximumPossibleSuppressedTicks = portMAX_24_BIT_NUMBER / ulTimerCountsForOneTick;
-        ulStoppedTimerCompensation = portMISSED_COUNTS_FACTOR;
+        ulTimerCountsForOneTick = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ);
+        xMaximumPossibleSuppressedTicks = 0xffffffUL / ulTimerCountsForOneTick;
+        ulStoppedTimerCompensation = 94UL / (configCPU_CLOCK_HZ / configSYSTICK_CLOCK_HZ);
     }
 #endif // configUSE_TICKLESS_IDLE
 

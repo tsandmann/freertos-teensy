@@ -93,13 +93,13 @@ void error_blink(const uint8_t n) __attribute__((noreturn));
 
 /**
  * @brief Get amount of used and free RAM1
- * @return Tuple of: free RAM in byte, used heap in byte, system free in byte, ram size in byte
+ * @return Tuple of: free RAM in byte, used data in byte, used bss in byte, used heap in byte, system free in byte, size of itcm in byte, ram size in byte
  */
-std::tuple<size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage();
+std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ram1_usage();
 
 /**
  * @brief Get amount of used and free RAM2
- * @return Tuple of: free RAM in byte, used heap in byte, system free in byte, ram size in byte
+ * @return Tuple of: free RAM in byte, ram size in byte
  */
 std::tuple<size_t, size_t> ram2_usage();
 
