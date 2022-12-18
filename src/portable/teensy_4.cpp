@@ -357,6 +357,30 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     __asm__ volatile("mrs %0, ipsr" : "=r"(addr)::);
 
     /* based on CrashReportClass of teensy cores library (https://github.com/PaulStoffregen/cores) */
+    struct arm_fault_info_struct* info = (struct arm_fault_info_struct*) 0x2027FF80;
+    info->ipsr = addr;
+    info->cfsr = SCB_CFSR;
+    info->hfsr = SCB_HFSR;
+    info->mmfar = SCB_MMFAR;
+    info->bfar = SCB_BFAR;
+    info->ret = hardfault_args[6];
+    info->xpsr = hardfault_args[7];
+    info->temp = tempmonGetTemp();
+    info->time = rtc_get();
+    info->len = sizeof(*info) / 4;
+    // add CRC to crash report
+    uint32_t crc { 0xFFFFFFFF };
+    auto ptr { reinterpret_cast<const uint32_t*>(info) };
+    auto p_end { ptr + (sizeof(*info) / 4 - 1) };
+    while (ptr < p_end) {
+        crc ^= *ptr++;
+        for (size_t i {}; i < 32; ++i) {
+            crc = (crc >> 1) ^ (crc & 1) * 0xEDB88320;
+        }
+    }
+    info->crc = crc;
+    arm_dcache_flush_delete(info, sizeof(*info));
+
     EXC_PRINTF(PSTR("Fault IRQ:    0x%x\r\n"), addr & 0x1ff);
     EXC_PRINTF(PSTR(" sp:          0x%x\r\n"), sp);
     EXC_PRINTF(PSTR(" lr:          0x%x\r\n"), lr);
