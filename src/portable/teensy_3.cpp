@@ -163,6 +163,11 @@ std::tuple<size_t, size_t> ram2_usage() {
     return ret;
 }
 
+std::tuple<size_t, size_t> ram3_usage() {
+    const std::tuple<size_t, size_t> ret { 0, 0 };
+    return ret;
+}
+
 uint64_t get_us() {
     uint32_t current, load, count, istatus;
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
