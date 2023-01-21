@@ -41,12 +41,11 @@
 namespace free_rtos_std {
 struct critical_section {
     critical_section() {
-        taskENTER_CRITICAL();
-        // ::vTaskSuspendAll(); // FIXME: check
+        ::vTaskSuspendAll();
     }
+
     ~critical_section() {
-        taskEXIT_CRITICAL();
-        // ::xTaskResumeAll(); // FIXME: check
+        ::xTaskResumeAll();
     }
 };
 } // namespace free_rtos_std

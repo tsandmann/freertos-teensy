@@ -28,6 +28,7 @@
 #include "arduino_freertos.h"
 
 #include <cstdint>
+#include <sys/time.h>
 
 
 namespace std {
@@ -132,4 +133,15 @@ static inline uint32_t get_ms() {
 }
 
 void print_stack_trace(TaskHandle_t task);
+
+class clock {
+    static inline timeval offset_ { 0, 0 };
+
+public:
+    static void sync_rtc();
+
+    static inline const timeval* get_offset() {
+        return &offset_;
+    }
+};
 } // namespace freertos

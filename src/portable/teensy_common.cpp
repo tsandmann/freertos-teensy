@@ -39,9 +39,6 @@
 #include "teensy.h"
 #include "event_responder_support.h"
 
-#if defined(__has_include) && __has_include("freertos_time.h")
-#include "freertos_time.h"
-#endif
 #include "semphr.h"
 
 
@@ -270,6 +267,22 @@ FLASHMEM void print_ram_usage() {
     EXC_PRINTF(PSTR("\r\n"));
     EXC_FLUSH();
 }
+
+void clock::sync_rtc() {
+    taskENTER_CRITICAL();
+
+    const auto now_us { freertos::get_us() };
+    const timeval now { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
+    const timeval rtc { static_cast<time_t>(::rtc_get()), 0 };
+
+    if (timercmp(&now, &rtc, <)) {
+        timersub(&rtc, &now, &offset_);
+    } else {
+        timersub(&now, &rtc, &offset_);
+    }
+
+    taskEXIT_CRITICAL();
+}
 } // namespace freertos
 
 extern "C" {
@@ -418,15 +431,12 @@ int _getpid() {
 
 #if TEENSYDUINO < 158
 FLASHMEM int _gettimeofday(timeval* tv, void*) {
+    const auto p_offset { freertos::clock::get_offset() };
+
     const auto now_us { freertos::get_us() };
-#if defined(__has_include) && __has_include("freertos_time.h")
-    const auto off { free_rtos_std::wall_clock::get_offset() };
-#else
-    const timeval off { 0, 0 };
-#endif
     const timeval now { static_cast<time_t>(now_us / 1'000'000UL), static_cast<suseconds_t>(now_us % 1'000'000UL) };
 
-    timeradd(&off, &now, tv);
+    timeradd(p_offset, &now, tv);
     return 0;
 }
 #endif

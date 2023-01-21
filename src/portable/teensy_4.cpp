@@ -296,6 +296,8 @@ void vPortSetupTimerInterrupt() {
     }
 #endif // configUSE_TICKLESS_IDLE
 
+    freertos::clock::sync_rtc();
+
     freertos::setup_event_responder();
 
     init_retarget_locks();
