@@ -28,17 +28,31 @@
 #error "Compiler too old for std::thread support with FreeRTOS."
 #endif
 
-#include "freertos_time.h"
-
 #include <thread>
 #include <future>
 #include <chrono>
-#include <time.h>
+#include <string>
+#include <ctime>
 
 
 using namespace std::chrono_literals;
 
 static std::jthread* g_t1 {};
+
+static bool print_time() {
+    std::string tmp (32, '\0');
+    struct timeval tv;
+    ::gettimeofday(&tv, nullptr);
+    std::time_t t { tv.tv_sec };
+    struct tm* info { std::localtime(&t) };
+
+    if (std::strftime(tmp.data(), tmp.size(), PSTR("%c UTC"), info) > 0) {
+        ::Serial.println(tmp.c_str());
+        return true;
+    }
+
+    return false;
+}
 
 static void task1(void*) {
     while (true) {
@@ -54,14 +68,12 @@ static void task2(void*) {
     g_t1 = new std::jthread { [](std::stop_token stop) {
         ::vTaskPrioritySet(nullptr, 3);
 
-        struct timeval tv;
-
         while (!stop.stop_requested()) {
             ::Serial.println(PSTR("TICK"));
             std::this_thread::sleep_for(500ms);
 
-            ::gettimeofday(&tv, nullptr);
-            ::Serial.printf(PSTR("TOCK\tnow: %lu s\n\r"), tv.tv_sec);
+            ::Serial.print(PSTR("TOCK\tnow: "));
+            print_time();
             std::this_thread::sleep_for(500ms);
         }
         ::Serial.println(PSTR("Thread stopped."));
@@ -144,10 +156,6 @@ void setup() {
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 8192, nullptr, configMAX_PRIORITIES - 1, nullptr);
     ::xTaskCreate(task3, "task3", 8192, nullptr, 3, nullptr);
-
-    std::chrono::time_point<std::chrono::system_clock, std::chrono::system_clock::duration> offset {};
-    offset += 1h;
-    free_rtos_std::set_system_clock(offset);
 
     ::Serial.println(PSTR("\n\rsetup(): starting scheduler..."));
     ::Serial.flush();
