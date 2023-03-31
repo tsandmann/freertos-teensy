@@ -238,6 +238,8 @@ FLASHMEM void mcu_shutdown() {
 
 
 namespace freertos {
+timeval clock::offset_ { 0, 0 };
+    
 FLASHMEM void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };

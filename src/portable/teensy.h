@@ -135,7 +135,7 @@ static inline uint32_t get_ms() {
 void print_stack_trace(TaskHandle_t task);
 
 class clock {
-    static inline timeval offset_ { 0, 0 };
+    static timeval offset_;
 
 public:
     static void sync_rtc();
