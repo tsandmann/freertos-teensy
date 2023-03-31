@@ -56,7 +56,7 @@ extern unsigned long _ebss;
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern uint32_t set_arm_clock(uint32_t frequency);
-uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) };
+uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) + 32 };
 
 
 FLASHMEM __attribute__((weak)) uint8_t get_debug_led_pin() {
@@ -239,7 +239,7 @@ FLASHMEM void mcu_shutdown() {
 
 namespace freertos {
 timeval clock::offset_ { 0, 0 };
-    
+
 FLASHMEM void error_blink(const uint8_t n) {
     ::vTaskSuspendAll();
     const uint8_t debug_led_pin { get_debug_led_pin() };
