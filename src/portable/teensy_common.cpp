@@ -325,7 +325,7 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     freertos::error_blink(3);
 }
 
-#ifdef PLATFORMIO // FIXME: update of teensy cores library necessary to work with Teensyduino
+#if defined PLATFORMIO || TEENSYDUINO >= 158
 #if configUSE_MALLOC_FAILED_HOOK == 1
 FLASHMEM void vApplicationMallocFailedHook() {
     freertos::error_blink(2);
@@ -374,7 +374,7 @@ void* sbrk(ptrdiff_t incr) {
 void* _sbrk(ptrdiff_t incr) {
     return sbrk(incr);
 };
-#endif // ! PLATFORMIO
+#endif // PLATFORMIO || TEENSYDUINO >= 158
 
 static std::atomic<uint32_t> malloc_nesting {};
 static uint32_t malloc_irq_mask { ~0U };
@@ -429,7 +429,6 @@ int _getpid() {
     return reinterpret_cast<int>(::xTaskGetCurrentTaskHandle());
 }
 
-#if TEENSYDUINO < 158
 FLASHMEM int _gettimeofday(timeval* tv, void*) {
     const auto p_offset { freertos::clock::get_offset() };
 
@@ -439,7 +438,6 @@ FLASHMEM int _gettimeofday(timeval* tv, void*) {
     timeradd(p_offset, &now, tv);
     return 0;
 }
-#endif
 
 FLASHMEM size_t xPortGetFreeHeapSize() {
     const struct mallinfo mi = ::mallinfo();
