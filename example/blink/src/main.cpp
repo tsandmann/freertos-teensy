@@ -60,7 +60,7 @@ FLASHMEM __attribute__((noinline)) void setup() {
         ::Serial.flush();
     }
 
-    ::Serial.println(PSTR("\r\nRunning FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ "."));
+    ::Serial.println(PSTR("\r\nBooting FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ " (newlib " _NEWLIB_VERSION ") on " __DATE__ ". ***\r\n"));
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 128, nullptr, 2, nullptr);

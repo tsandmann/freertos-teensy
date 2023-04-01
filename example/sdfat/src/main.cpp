@@ -103,23 +103,23 @@ static void task2(void*) {
 }
 
 FLASHMEM __attribute__((noinline)) void setup() {
-    arduino::Serial.begin(115'200);
+    ::Serial.begin(115'200);
 #ifndef USE_ARDUINO_DEFINES
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
     ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
 #else
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWriteFast(LED_BUILTIN, HIGH);
+    ::pinMode(LED_BUILTIN, OUTPUT);
+    ::digitalWriteFast(LED_BUILTIN, HIGH);
 #endif
-    arduino::delay(5'000);
+    ::delay(5'000);
 
-    arduino::Serial.println(PSTR("\r\nRunning FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ "."));
+    ::Serial.println(PSTR("\r\nBooting FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ " (newlib " _NEWLIB_VERSION ") on " __DATE__ ". ***\r\n"));
 
     ::xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     ::xTaskCreate(task2, "task2", 2048, nullptr, 2, nullptr);
 
-    arduino::Serial.println("setup(): starting scheduler...");
-    arduino::Serial.flush();
+    ::Serial.println("setup(): starting scheduler...");
+    ::Serial.flush();
 
     ::vTaskStartScheduler();
 }

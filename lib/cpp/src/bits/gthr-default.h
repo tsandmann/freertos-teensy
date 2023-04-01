@@ -211,13 +211,13 @@ static inline int __gthread_cond_destroy(__gthread_cond_t*) {
 
 } // extern "C"
 #elif !defined PLATFORMIO
-#error "std::thread support not available with Teensyduino."
+#warning "std::thread support not available with Teensyduino."
 #undef _GLIBCXX_HAS_GTHREADS
 #undef __GTHREADS
 typedef SemaphoreHandle_t __gthread_mutex_t;
 typedef SemaphoreHandle_t __gthread_recursive_mutex_t;
 #else
-#error "Compiler too old for std::thread support with FreeRTOS."
+#warning "Compiler too old for std::thread support with FreeRTOS."
 #undef _GLIBCXX_HAS_GTHREADS
 #undef __GTHREADS
 typedef SemaphoreHandle_t __gthread_mutex_t;
