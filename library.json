@@ -24,7 +24,7 @@
     }
   ],
   "frameworks": "arduino",
-  "platforms": "teensy",
+  "platforms": [ "teensy", "teensy-ts" ],
   "build": {
     "flags": [
       "-Ilib/cpp/src/bits",
