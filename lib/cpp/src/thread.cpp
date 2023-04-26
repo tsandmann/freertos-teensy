@@ -33,6 +33,7 @@
 /// adapted for use with the teensy FreeRTOS port by Timo Sandmann
 ///
 
+#define _GLIBCXX_THREAD_IMPL
 #include "arduino_freertos.h"
 
 #if _GCC_VERSION >= 60100
