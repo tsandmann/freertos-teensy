@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020 Timo Sandmann
+ * Copyright (c) 2020-2023 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,9 +18,9 @@
 
 /**
  * @file    teensy_4.cpp
- * @brief   FreeRTOS support implementations for Teensy 4.0 and 4.1 boards with newlib 3
+ * @brief   FreeRTOS support implementations for Teensy 4.0 and 4.1 boards with newlib 4
  * @author  Timo Sandmann
- * @date    10.05.2020
+ * @date    04.06.2023
  */
 
 #if defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41
@@ -81,10 +81,12 @@ extern const uint8_t _serialEventUSB1_default;
 #else
 extern uint8_t yield_active_check_flags;
 #endif
-extern const uint8_t _serialEvent_default;
 
 
 namespace freertos {
+#if TEENSYDUINO <= 158
+extern const uint8_t _serialEvent_default;
+
 FLASHMEM void yield() {
     static uint8_t running = 0;
     if (!yield_active_check_flags) {
@@ -137,6 +139,53 @@ FLASHMEM void yield() {
         EventResponder::runFromYield();
     }
 }
+#else // TEENSYDUINO > 158
+FLASHMEM void yield() {
+    static uint8_t running = 0;
+
+    const uint8_t check_flags = yield_active_check_flags;
+    if (!check_flags) {
+        return; // nothing to do
+    }
+
+    if (running) {
+        return;
+    }
+    running = 1;
+
+    // USB Serial - Add hack to minimize impact...
+    if (check_flags & YIELD_CHECK_USB_SERIAL) {
+        if (Serial.available()) {
+            serialEvent();
+        }
+    }
+
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+    if (check_flags & YIELD_CHECK_USB_SERIALUSB1) {
+        if (SerialUSB1.available()) {
+            serialEventUSB1();
+        }
+    }
+#endif // USB_DUAL_SERIAL || USB_TRIPLE_SERIAL
+#ifdef USB_TRIPLE_SERIAL
+    if (check_flags & YIELD_CHECK_USB_SERIALUSB2) {
+        if (SerialUSB2.available()) {
+            serialEventUSB2();
+        }
+    }
+#endif // USB_TRIPLE_SERIAL
+
+    // Current workaround until integrate with EventResponder.
+    if (check_flags & YIELD_CHECK_HARDWARE_SERIAL) {
+        HardwareSerial::processSerialEventsList();
+    }
+
+    running = 0;
+    if (check_flags & YIELD_CHECK_EVENT_RESPONDER) {
+        EventResponder::runFromYield();
+    }
+}
+#endif // TEENSYDUINO
 
 FLASHMEM void delay_ms(const uint32_t ms) {
     const uint32_t cycles_ms { static_cast<uint32_t>((1ULL << 32) * 1'000'000ULL / 2'000ULL / static_cast<uint64_t>(scale_cpu_cycles_to_microseconds)) };

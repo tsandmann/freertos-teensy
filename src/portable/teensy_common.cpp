@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020 Timo Sandmann
+ * Copyright (c) 2020-2023 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,9 +18,9 @@
 
 /**
  * @file    teensy_common.cpp
- * @brief   FreeRTOS support implementations for Teensy boards with newlib 3
+ * @brief   FreeRTOS support implementations for Teensy boards with newlib 4
  * @author  Timo Sandmann
- * @date    10.10.2020
+ * @date    04.06.2023
  */
 
 #define _DEFAULT_SOURCE
@@ -297,7 +297,7 @@ void event_responder_set_pend_sv() {
 }
 
 FLASHMEM void yield() {
-    if (::xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && freertos::g_yield_task) {
+    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED && freertos::g_yield_task) {
         if (xPortIsInsideInterrupt() == pdTRUE) {
             BaseType_t higher_woken { pdFALSE };
             ::xTaskNotifyFromISR(freertos::g_yield_task, 0, eNoAction, &higher_woken);
@@ -380,6 +380,7 @@ void* _sbrk(ptrdiff_t incr) {
 
 static std::atomic<uint32_t> malloc_nesting {};
 static uint32_t malloc_irq_mask { ~0U };
+
 void __malloc_lock(struct _reent*) {
     const auto old_nesting { malloc_nesting.fetch_add(1) };
 
@@ -420,11 +421,15 @@ void __malloc_unlock(struct _reent*) {
 // newlib also requires implementing locks for the application's environment memory space,
 // accessed by newlib's setenv() and getenv() functions.
 void __env_lock() {
-    ::vTaskSuspendAll();
+    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        ::vTaskSuspendAll();
+    }
 };
 
 void __env_unlock() {
-    ::xTaskResumeAll();
+    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        ::xTaskResumeAll();
+    }
 };
 
 int _getpid() {
@@ -542,39 +547,39 @@ void __retarget_lock_close_recursive(_LOCK_T lock) {
 }
 
 void __retarget_lock_acquire(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
     }
 }
 
 void __retarget_lock_acquire_recursive(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
     }
 }
 
 int __retarget_lock_try_acquire(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         return ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), 0);
     }
     return 0;
 }
 
 int __retarget_lock_try_acquire_recursive(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         return ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), 0);
     }
     return 0;
 }
 
 void __retarget_lock_release(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         ::xSemaphoreGive(reinterpret_cast<QueueHandle_t>(lock));
     }
 }
 
 void __retarget_lock_release_recursive(_LOCK_T lock) {
-    if (__locks_initialized) {
+    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
     }
 }
