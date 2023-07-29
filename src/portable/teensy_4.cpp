@@ -82,10 +82,12 @@ extern const uint8_t _serialEventUSB1_default;
 extern uint8_t yield_active_check_flags;
 #endif
 
+#if TEENSYDUINO <= 158
+extern const uint8_t _serialEvent_default;
+#endif
 
 namespace freertos {
 #if TEENSYDUINO <= 158
-extern const uint8_t _serialEvent_default;
 
 FLASHMEM void yield() {
     static uint8_t running = 0;
