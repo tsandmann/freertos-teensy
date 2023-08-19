@@ -33,23 +33,14 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "HardwareSerial.h"
 #include "Arduino.h"
 #include "Print.h"
 #if defined(__has_include) && __has_include("Wire.h")
 #include "Wire.h"
-#else
-class TwoWire;
-class Wire;
-class Wire1;
-class Wire2;
-class Wire3;
 #endif
 #if defined(__has_include) && __has_include("SPI.h")
 #include "SPI.h"
-#else
-class SPI;
-class SPI1;
-class SPI2;
 #endif
 #if defined(__has_include) && __has_include("FS.h")
 #include "FS.h"
@@ -132,8 +123,9 @@ using ::micros;
 using ::millis;
 using ::yield;
 
-using ::HardwareSerial;
 using ::Serial;
+#if !defined DISABLE_ARDUINO_HWSERIAL
+using ::HardwareSerial;
 using ::Serial1;
 using ::Serial2;
 using ::Serial3;
@@ -146,12 +138,14 @@ using ::Serial7;
 #ifdef ARDUINO_TEENSY41
 using ::Serial8;
 #endif
-#if defined(__has_include) && __has_include("SPI.h")
+#endif // !DISABLE_ARDUINO_HWSERIAL
+#if defined(__has_include) && __has_include("SPI.h") && !defined DISABLE_ARDUINO_SPI
 using ::SPI;
 using ::SPI1;
 using ::SPI2;
 #endif // SPI.h
 using ::Stream;
+#if defined(__has_include) && __has_include("Wire.h") && !defined DISABLE_ARDUINO_WIRE
 using ::TwoWire;
 using ::Wire;
 using ::Wire1;
@@ -159,6 +153,7 @@ using ::Wire2;
 #ifdef WIRE_IMPLEMENT_WIRE3
 using ::Wire3;
 #endif
+#endif // Wire.h
 
 using ::String;
 
