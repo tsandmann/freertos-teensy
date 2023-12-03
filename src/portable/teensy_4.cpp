@@ -33,6 +33,7 @@
 #include "event_responder_support.h"
 #include "avr/pgmspace.h"
 #include "EventResponder.h"
+#include "imxrt.h"
 
 #define __ASM __asm
 #define __STATIC_INLINE static inline
@@ -182,7 +183,11 @@ FLASHMEM void yield() {
 #if !defined DISABLE_ARDUINO_HWSERIAL
     // Current workaround until integrate with EventResponder.
     if (check_flags & YIELD_CHECK_HARDWARE_SERIAL) {
+#ifdef FLEXIO_TIMCFG_STARTBIT_DISABLED // workaround to check for Teensyduino >= 1.59 Beta 4
+        HardwareSerialIMXRT::processSerialEventsList();
+#else
         HardwareSerial::processSerialEventsList();
+#endif
     }
 #endif // !DISABLE_ARDUINO_HWSERIAL
 
