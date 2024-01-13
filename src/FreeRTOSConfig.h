@@ -1,6 +1,8 @@
 /*
- * FreeRTOS Kernel V10.5.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V11.0.1
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -20,7 +22,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * https://www.FreeRTOS.org
- * https://aws.amazon.com/freertos
+ * https://github.com/FreeRTOS
  *
  */
 
@@ -53,7 +55,7 @@ extern "C" {
 #define configMAX_PRIORITIES                        ( 5 )
 #define configMINIMAL_STACK_SIZE                    ( ( unsigned short ) 120 )
 #define configMAX_TASK_NAME_LEN                     ( 20 )
-#define configUSE_16_BIT_TICKS                      0
+#define configTICK_TYPE_WIDTH_IN_BITS               TICK_TYPE_WIDTH_32_BITS
 #define configIDLE_SHOULD_YIELD                     1
 #define configUSE_TASK_NOTIFICATIONS                1
 #define configUSE_MUTEXES                           1
@@ -64,8 +66,8 @@ extern "C" {
 #define configUSE_TIME_SLICING                      0
 #define configUSE_NEWLIB_REENTRANT                  0
 #define configENABLE_BACKWARD_COMPATIBILITY         0
-#define configUSE_APPLICATION_TASK_TAG              0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS     0
+#define configUSE_APPLICATION_TASK_TAG              0
 
 /* Tasks.c additions (e.g. Thread Aware Debug capability) */
 #define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H   1
@@ -84,9 +86,9 @@ extern "C" {
 
 /* Run time stats gathering definitions. */
 #define configGENERATE_RUN_TIME_STATS               0
-#define configUSE_TRACE_FACILITY                    0
 #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
 #define portGET_RUN_TIME_COUNTER_VALUE()
+#define configUSE_TRACE_FACILITY                    0
 #define configUSE_STATS_FORMATTING_FUNCTIONS        0
 
 /* Task aware debugging. */
@@ -109,25 +111,26 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelete                         1
 #define INCLUDE_vTaskCleanUpResources               1
 #define INCLUDE_vTaskSuspend                        1
-#define INCLUDE_vTaskDelayUntil                     1
+#define INCLUDE_xTaskDelayUntil                     1
 #define INCLUDE_vTaskDelay                          1
 #define INCLUDE_eTaskGetState                       1
 #define INCLUDE_xTimerPendFunctionCall              1
 #define INCLUDE_xSemaphoreGetMutexHolder            0
 #define INCLUDE_xTaskGetSchedulerState              1
 #define INCLUDE_xTaskGetCurrentTaskHandle           1
-#define INCLUDE_uxTaskGetStackHighWaterMark         0
-#define INCLUDE_xTaskGetIdleTaskHandle              0
-#define INCLUDE_xTaskAbortDelay                     0
-#define INCLUDE_xTaskGetHandle                      0
+#define INCLUDE_uxTaskGetStackHighWaterMark         1
+#define INCLUDE_xTaskGetIdleTaskHandle              1
+#define INCLUDE_eTaskGetState                       1
+#define INCLUDE_xTaskAbortDelay                     1
+#define INCLUDE_xTaskGetHandle                      1
 #define INCLUDE_xTaskResumeFromISR                  1
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
-	/* __BVIC_PRIO_BITS will be specified when CMSIS is being used. */
-	#define configPRIO_BITS                         __NVIC_PRIO_BITS
+    /* __BVIC_PRIO_BITS will be specified when CMSIS is being used. */
+    #define configPRIO_BITS                         __NVIC_PRIO_BITS
 #else
-	#define configPRIO_BITS                         4 /* 15 priority levels */
+    #define configPRIO_BITS                         4 /* 15 priority levels */
 #endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"
@@ -142,17 +145,10 @@ PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 
 /* Interrupt priorities used by the kernel port layer itself.  These are generic
 to all Cortex-M ports, and do not rely on any particular library functions. */
-#define configKERNEL_INTERRUPT_PRIORITY             ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+#define configKERNEL_INTERRUPT_PRIORITY             ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << ( 8 - configPRIO_BITS ) )
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
-
-
-/* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS
-standard names. */
-#define vPortSVCHandler                             SVC_Handler
-#define xPortPendSVHandler                          PendSV_Handler
-#define xPortSysTickHandler                         SysTick_Handler
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << ( 8 - configPRIO_BITS ) )
 
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
