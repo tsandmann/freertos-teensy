@@ -1,7 +1,7 @@
 // clang-format off
 
 /*
- * FreeRTOS Kernel V10.5.1
+ * FreeRTOS Kernel V11.0.1
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
@@ -40,16 +40,20 @@
     #error This port can only be used when the project options are configured to enable hardware floating point support.
 #endif
 
+/* Prototype of all Interrupt Service Routines (ISRs). */
+typedef void ( * portISR_t )( void );
+
 /* Constants required to manipulate the core.  Registers first... */
-#define portNVIC_SYSTICK_CTRL_REG             ( SYST_CSR )
-#define portNVIC_SYSTICK_LOAD_REG             ( SYST_RVR )
-#define portNVIC_SYSTICK_CURRENT_VALUE_REG    ( SYST_CVR )
-#define portNVIC_SHPR3_REG                    ( SCB_SHPR3 )
+#define portNVIC_SYSTICK_CTRL_REG             ( *( ( volatile uint32_t * ) 0xe000e010 ) )
+#define portNVIC_SYSTICK_LOAD_REG             ( *( ( volatile uint32_t * ) 0xe000e014 ) )
+#define portNVIC_SYSTICK_CURRENT_VALUE_REG    ( *( ( volatile uint32_t * ) 0xe000e018 ) )
+#define portNVIC_SHPR2_REG                    ( *( ( volatile uint32_t * ) 0xe000ed1c ) )
+#define portNVIC_SHPR3_REG                    ( *( ( volatile uint32_t * ) 0xe000ed20 ) )
 /* ...then bits in the registers. */
 #define portNVIC_SYSTICK_CLK_BIT              ( 1UL << 2UL )
-#define portNVIC_SYSTICK_INT_BIT              ( SYST_CSR_TICKINT )
-#define portNVIC_SYSTICK_ENABLE_BIT           ( SYST_CSR_ENABLE )
-#define portNVIC_SYSTICK_COUNT_FLAG_BIT       ( SYST_CSR_COUNTFLAG )
+#define portNVIC_SYSTICK_INT_BIT              ( 1UL << 1UL )
+#define portNVIC_SYSTICK_ENABLE_BIT           ( 1UL << 0UL )
+#define portNVIC_SYSTICK_COUNT_FLAG_BIT       ( 1UL << 16UL )
 #define portNVIC_PENDSVCLEAR_BIT              ( 1UL << 27UL )
 #define portNVIC_PEND_SYSTICK_SET_BIT         ( 1UL << 26UL )
 #define portNVIC_PEND_SYSTICK_CLEAR_BIT       ( 1UL << 25UL )
@@ -60,13 +64,19 @@
 #define portCORTEX_M7_r0p1_ID                 ( 0x410FC271UL )
 #define portCORTEX_M7_r0p0_ID                 ( 0x410FC270UL )
 
-#define portNVIC_PENDSV_PRI                   ( ( ( uint32_t ) configKERNEL_INTERRUPT_PRIORITY ) << 16UL )
-#define portNVIC_SYSTICK_PRI                  ( ( ( uint32_t ) configKERNEL_INTERRUPT_PRIORITY ) << 24UL )
+#define portMIN_INTERRUPT_PRIORITY            ( 255UL )
+#define portNVIC_PENDSV_PRI                   ( ( ( uint32_t ) portMIN_INTERRUPT_PRIORITY ) << 16UL )
+#define portNVIC_SYSTICK_PRI                  ( ( ( uint32_t ) portMIN_INTERRUPT_PRIORITY ) << 24UL )
+
+/* Constants used to check the installation of the FreeRTOS interrupt handlers. */
+#define portSCB_VTOR_REG                      ( *( ( portISR_t ** ) 0xE000ED08 ) )
+#define portVECTOR_INDEX_SVC                  ( 11 )
+#define portVECTOR_INDEX_PENDSV               ( 14 )
 
 /* Constants required to check the validity of an interrupt priority. */
 #define portFIRST_USER_INTERRUPT_NUMBER       ( 16 )
 #define portNVIC_IP_REGISTERS_OFFSET_16       ( 0xE000E3F0 )
-#define portAIRCR_REG                         ( SCB_AIRCR )
+#define portAIRCR_REG                         ( *( ( volatile uint32_t * ) 0xE000ED0C ) )
 #define portMAX_8_BIT_VALUE                   ( ( uint8_t ) 0xff )
 #define portTOP_BIT_OF_BYTE                   ( ( uint8_t ) 0x80 )
 #define portMAX_PRIGROUP_BITS                 ( ( uint8_t ) 7 )
@@ -77,7 +87,7 @@
 #define portVECTACTIVE_MASK                   ( 0xFFUL )
 
 /* Constants required to manipulate the VFP. */
-#define portFPCCR                             ( &SCB_FPCCR ) /* Floating point context control register. */
+#define portFPCCR                             ( ( volatile uint32_t * ) 0xe000ef34 ) /* Floating point context control register. */
 #define portASPEN_AND_LSPEN_BITS              ( 0x3UL << 30UL )
 
 /* Constants required to set up the initial stack. */
@@ -122,7 +132,7 @@
  * file is weak to allow application writers to change the timer used to
  * generate the tick interrupt.
  */
-void vPortSetupTimerInterrupt( void ) __attribute__(( weak, section( ".flashmem" ) ));
+void vPortSetupTimerInterrupt( void ) __attribute__( ( weak, section( ".flashmem" ) ) );
 
 /*
  * Exception handlers.
@@ -252,18 +262,18 @@ void prvTaskExitError( void )
 void vPortSVCHandler( void )
 {
     __asm volatile (
-        "	ldr	r3, pxCurrentTCBConst2		\n"/* Restore the context. */
-        "	ldr r1, [r3]					\n"/* Use pxCurrentTCBConst to get the pxCurrentTCB address. */
-        "	ldr r0, [r1]					\n"/* The first item in pxCurrentTCB is the task top of stack. */
-        "	ldmia r0!, {r4-r11, r14}		\n"/* Pop the registers that are not automatically saved on exception entry and the critical nesting count. */
-        "	msr psp, r0						\n"/* Restore the task stack pointer. */
-        "	isb								\n"
-        "	mov r0, #0 						\n"
-        "	msr	basepri, r0					\n"
-        "	bx r14							\n"
-        "									\n"
-        "	.align 4						\n"
-        "pxCurrentTCBConst2: .word pxCurrentTCB				\n"
+        "   ldr r3, pxCurrentTCBConst2      \n" /* Restore the context. */
+        "   ldr r1, [r3]                    \n" /* Use pxCurrentTCBConst to get the pxCurrentTCB address. */
+        "   ldr r0, [r1]                    \n" /* The first item in pxCurrentTCB is the task top of stack. */
+        "   ldmia r0!, {r4-r11, r14}        \n" /* Pop the registers that are not automatically saved on exception entry and the critical nesting count. */
+        "   msr psp, r0                     \n" /* Restore the task stack pointer. */
+        "   isb                             \n"
+        "   mov r0, #0                      \n"
+        "   msr basepri, r0                 \n"
+        "   bx r14                          \n"
+        "                                   \n"
+        "   .align 4                        \n"
+        "pxCurrentTCBConst2: .word pxCurrentTCB             \n"
         );
 }
 /*-----------------------------------------------------------*/
@@ -275,20 +285,20 @@ static void prvPortStartFirstTask( void )
      * would otherwise result in the unnecessary leaving of space in the SVC stack
      * for lazy saving of FPU registers. */
     __asm volatile (
-        " ldr r0, =0xE000ED08 	\n"/* Use the NVIC offset register to locate the stack. */
-        " ldr r0, [r0] 			\n"
-        " ldr r0, [r0] 			\n"
-        " msr msp, r0			\n"/* Set the msp back to the start of the stack. */
-        " isb					\n"
-        " mov r0, #0			\n"/* Clear the bit that indicates the FPU is in use, see comment above. */
-        " msr control, r0		\n"
-        " cpsie i				\n"/* Globally enable interrupts. */
-        " cpsie f				\n"
-        " dsb					\n"
-        " isb					\n"
-        " svc 0					\n"/* System call to start first task. */
-        " nop					\n"
-        " .ltorg				\n"
+        " ldr r0, =0xE000ED08   \n" /* Use the NVIC offset register to locate the stack. */
+        " ldr r0, [r0]          \n"
+        " ldr r0, [r0]          \n"
+        " msr msp, r0           \n" /* Set the msp back to the start of the stack. */
+        " isb                   \n"
+        " mov r0, #0            \n" /* Clear the bit that indicates the FPU is in use, see comment above. */
+        " msr control, r0       \n"
+        " cpsie i               \n" /* Globally enable interrupts. */
+        " cpsie f               \n"
+        " dsb                   \n"
+        " isb                   \n"
+        " svc 0                 \n" /* System call to start first task. */
+        " nop                   \n"
+        " .ltorg                \n"
         );
 }
 /*-----------------------------------------------------------*/
@@ -298,10 +308,6 @@ static void prvPortStartFirstTask( void )
  */
 BaseType_t xPortStartScheduler( void )
 {
-    /* configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to 0.
-     * See https://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html */
-    configASSERT( configMAX_SYSCALL_INTERRUPT_PRIORITY );
-
     /* This port can be used on all revisions of the Cortex-M7 core other than
      * the r0p1 parts.  r0p1 parts should use the port from the
      * /source/portable/GCC/ARM_CM7/r0p1 directory. */
@@ -310,7 +316,8 @@ BaseType_t xPortStartScheduler( void )
 
     #if ( configASSERT_DEFINED == 1 )
     {
-        volatile uint32_t ulOriginalPriority;
+        volatile uint8_t ucOriginalPriority;
+        volatile uint32_t ulImplementedPrioBits = 0;
         volatile uint8_t * const pucFirstUserPriorityRegister = ( volatile uint8_t * const ) ( portNVIC_IP_REGISTERS_OFFSET_16 + portFIRST_USER_INTERRUPT_NUMBER );
         volatile uint8_t ucMaxPriorityValue;
 
@@ -320,7 +327,7 @@ BaseType_t xPortStartScheduler( void )
          * ensure interrupt entry is as fast and simple as possible.
          *
          * Save the interrupt priority value that is about to be clobbered. */
-        ulOriginalPriority = *pucFirstUserPriorityRegister;
+        ucOriginalPriority = *pucFirstUserPriorityRegister;
 
         /* Determine the number of priority bits available.  First write to all
          * possible bits. */
@@ -332,33 +339,53 @@ BaseType_t xPortStartScheduler( void )
         /* Use the same mask on the maximum system call priority. */
         ucMaxSysCallPriority = configMAX_SYSCALL_INTERRUPT_PRIORITY & ucMaxPriorityValue;
 
+        /* Check that the maximum system call priority is nonzero after
+         * accounting for the number of priority bits supported by the
+         * hardware. A priority of 0 is invalid because setting the BASEPRI
+         * register to 0 unmasks all interrupts, and interrupts with priority 0
+         * cannot be masked using BASEPRI.
+         * See https://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html */
+        configASSERT( ucMaxSysCallPriority );
+
+        /* Check that the bits not implemented in hardware are zero in
+         * configMAX_SYSCALL_INTERRUPT_PRIORITY. */
+        configASSERT( ( configMAX_SYSCALL_INTERRUPT_PRIORITY & ( ~ucMaxPriorityValue ) ) == 0U );
+
         /* Calculate the maximum acceptable priority group value for the number
          * of bits read back. */
-        ulMaxPRIGROUPValue = portMAX_PRIGROUP_BITS;
 
         while( ( ucMaxPriorityValue & portTOP_BIT_OF_BYTE ) == portTOP_BIT_OF_BYTE )
         {
-            ulMaxPRIGROUPValue--;
+            ulImplementedPrioBits++;
             ucMaxPriorityValue <<= ( uint8_t ) 0x01;
         }
 
-        #ifdef __NVIC_PRIO_BITS
+        if( ulImplementedPrioBits == 8 )
         {
-            /* Check the CMSIS configuration that defines the number of
-             * priority bits matches the number of priority bits actually queried
-             * from the hardware. */
-            configASSERT( ( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == __NVIC_PRIO_BITS );
+            /* When the hardware implements 8 priority bits, there is no way for
+             * the software to configure PRIGROUP to not have sub-priorities. As
+             * a result, the least significant bit is always used for sub-priority
+             * and there are 128 preemption priorities and 2 sub-priorities.
+             *
+             * This may cause some confusion in some cases - for example, if
+             * configMAX_SYSCALL_INTERRUPT_PRIORITY is set to 5, both 5 and 4
+             * priority interrupts will be masked in Critical Sections as those
+             * are at the same preemption priority. This may appear confusing as
+             * 4 is higher (numerically lower) priority than
+             * configMAX_SYSCALL_INTERRUPT_PRIORITY and therefore, should not
+             * have been masked. Instead, if we set configMAX_SYSCALL_INTERRUPT_PRIORITY
+             * to 4, this confusion does not happen and the behaviour remains the same.
+             *
+             * The following assert ensures that the sub-priority bit in the
+             * configMAX_SYSCALL_INTERRUPT_PRIORITY is clear to avoid the above mentioned
+             * confusion. */
+            configASSERT( ( configMAX_SYSCALL_INTERRUPT_PRIORITY & 0x1U ) == 0U );
+            ulMaxPRIGROUPValue = 0;
         }
-        #endif
-
-        #ifdef configPRIO_BITS
+        else
         {
-            /* Check the FreeRTOS configuration that defines the number of
-             * priority bits matches the number of priority bits actually queried
-             * from the hardware. */
-            configASSERT( ( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == configPRIO_BITS );
+            ulMaxPRIGROUPValue = portMAX_PRIGROUP_BITS - ulImplementedPrioBits;
         }
-        #endif
 
         /* Shift the priority group value back to its position within the AIRCR
          * register. */
@@ -367,16 +394,53 @@ BaseType_t xPortStartScheduler( void )
 
         /* Restore the clobbered interrupt priority register to its original
          * value. */
-        *pucFirstUserPriorityRegister = ulOriginalPriority;
+        *pucFirstUserPriorityRegister = ucOriginalPriority;
     }
     #endif /* configASSERT_DEFINED */
 
-    /* Make PendSV and SysTick the lowest priority interrupts. */
-    portNVIC_SHPR3_REG = portNVIC_PENDSV_PRI | portNVIC_SYSTICK_PRI;
+    /* Make PendSV and SysTick the lowest priority interrupts, and make SVCall
+     * the highest priority. */
+    portNVIC_SHPR3_REG |= portNVIC_PENDSV_PRI;
+    portNVIC_SHPR3_REG |= portNVIC_SYSTICK_PRI;
+    portNVIC_SHPR2_REG = 0;
 
     /* Start the timer that generates the tick ISR.  Interrupts are disabled
      * here already. */
     vPortSetupTimerInterrupt();
+
+    /* An application can install FreeRTOS interrupt handlers in one of the
+     * folllowing ways:
+     * 1. Direct Routing - Install the functions vPortSVCHandler and
+     *    xPortPendSVHandler for SVCall and PendSV interrupts respectively.
+     * 2. Indirect Routing - Install separate handlers for SVCall and PendSV
+     *    interrupts and route program control from those handlers to
+     *    vPortSVCHandler and xPortPendSVHandler functions.
+     *
+     * Applications that use Indirect Routing must set
+     * configCHECK_HANDLER_INSTALLATION to 0 in their FreeRTOSConfig.h. Direct
+     * routing, which is validated here when configCHECK_HANDLER_INSTALLATION
+     * is 1, should be preferred when possible. */
+    #if ( configCHECK_HANDLER_INSTALLATION == 1 )
+    {
+        const portISR_t * const pxVectorTable = portSCB_VTOR_REG;
+
+        /* Validate that the application has correctly installed the FreeRTOS
+         * handlers for SVCall and PendSV interrupts. We do not check the
+         * installation of the SysTick handler because the application may
+         * choose to drive the RTOS tick using a timer other than the SysTick
+         * timer by overriding the weak function vPortSetupTimerInterrupt().
+         *
+         * Assertion failures here indicate incorrect installation of the
+         * FreeRTOS handlers. For help installing the FreeRTOS handlers, see
+         * https://www.FreeRTOS.org/FAQHelp.html.
+         *
+         * Systems with a configurable address for the interrupt vector table
+         * can also encounter assertion failures or even system faults here if
+         * VTOR is not set correctly to point to the application's vector table. */
+        configASSERT( pxVectorTable[ portVECTOR_INDEX_SVC ] == vPortSVCHandler );
+        configASSERT( pxVectorTable[ portVECTOR_INDEX_PENDSV ] == xPortPendSVHandler );
+    }
+    #endif /* configCHECK_HANDLER_INSTALLATION */
 
     /* Initialise the critical nesting count ready for the first task. */
     uxCriticalNesting = 0;
@@ -408,17 +472,17 @@ void vPortEndScheduler( void )
 {
     /* Cancel the Idle task and free its resources */
     vTaskDelete( xTaskGetIdleTaskHandle() );
-#if ( configUSE_TIMERS == 1 )
-    extern TaskHandle_t xTimerGetTimerDaemonTaskHandle( void );
-    /* Cancel the Timer task and free its resources */
-    vTaskDelete( xTimerGetTimerDaemonTaskHandle() );
-#endif /* configUSE_TIMERS */
+    #if ( configUSE_TIMERS == 1 )
+        extern TaskHandle_t xTimerGetTimerDaemonTaskHandle( void );
+        /* Cancel the Timer task and free its resources */
+        vTaskDelete( xTimerGetTimerDaemonTaskHandle() );
+    #endif /* configUSE_TIMERS */
 
     /* Stop and clear the SysTick. */
     portNVIC_SYSTICK_CTRL_REG = 0UL;
     portNVIC_SYSTICK_CURRENT_VALUE_REG = 0UL;
     portENABLE_INTERRUPTS();
-
+    
     /* Not implemented in ports where there is nothing to return to.
      * Artificially force an assert. */
     configASSERT( uxCriticalNesting == 1000UL );
@@ -460,52 +524,52 @@ void xPortPendSVHandler( void )
 
     __asm volatile
     (
-        "	mrs r0, psp							\n"
-        "	isb									\n"
-        "										\n"
-        "	ldr	r3, pxCurrentTCBConst			\n"/* Get the location of the current TCB. */
-        "	ldr	r2, [r3]						\n"
-        "										\n"
-        "	tst r14, #0x10						\n"/* Is the task using the FPU context?  If so, push high vfp registers. */
-        "	it eq								\n"
-        "	vstmdbeq r0!, {s16-s31}				\n"
-        "										\n"
-        "	stmdb r0!, {r4-r11, r14}			\n"/* Save the core registers. */
-        "	str r0, [r2]						\n"/* Save the new top of stack into the first member of the TCB. */
-        "										\n"
-        "	stmdb sp!, {r0, r3}					\n"
-        "	mov r0, %0 							\n"
-        "	msr basepri, r0						\n"
-        "	dsb									\n"
-        "	isb									\n"
-        "	bl vTaskSwitchContext				\n"
-        "	mov r0, #0							\n"
-        "	msr basepri, r0						\n"
-        "	ldmia sp!, {r0, r3}					\n"
-        "										\n"
-        "	ldr r1, [r3]						\n"/* The first item in pxCurrentTCB is the task top of stack. */
-        "	ldr r0, [r1]						\n"
-        "										\n"
-        "	ldmia r0!, {r4-r11, r14}			\n"/* Pop the core registers. */
-        "										\n"
-        "	tst r14, #0x10						\n"/* Is the task using the FPU context?  If so, pop the high vfp registers too. */
-        "	it eq								\n"
-        "	vldmiaeq r0!, {s16-s31}				\n"
-        "										\n"
-        "	msr psp, r0							\n"
-        "	isb									\n"
-        "										\n"
+        "   mrs r0, psp                         \n"
+        "   isb                                 \n"
+        "                                       \n"
+        "   ldr r3, pxCurrentTCBConst           \n" /* Get the location of the current TCB. */
+        "   ldr r2, [r3]                        \n"
+        "                                       \n"
+        "   tst r14, #0x10                      \n" /* Is the task using the FPU context?  If so, push high vfp registers. */
+        "   it eq                               \n"
+        "   vstmdbeq r0!, {s16-s31}             \n"
+        "                                       \n"
+        "   stmdb r0!, {r4-r11, r14}            \n" /* Save the core registers. */
+        "   str r0, [r2]                        \n" /* Save the new top of stack into the first member of the TCB. */
+        "                                       \n"
+        "   stmdb sp!, {r0, r3}                 \n"
+        "   mov r0, %0                          \n"
+        "   msr basepri, r0                     \n"
+        "   dsb                                 \n"
+        "   isb                                 \n"
+        "   bl vTaskSwitchContext               \n"
+        "   mov r0, #0                          \n"
+        "   msr basepri, r0                     \n"
+        "   ldmia sp!, {r0, r3}                 \n"
+        "                                       \n"
+        "   ldr r1, [r3]                        \n" /* The first item in pxCurrentTCB is the task top of stack. */
+        "   ldr r0, [r1]                        \n"
+        "                                       \n"
+        "   ldmia r0!, {r4-r11, r14}            \n" /* Pop the core registers. */
+        "                                       \n"
+        "   tst r14, #0x10                      \n" /* Is the task using the FPU context?  If so, pop the high vfp registers too. */
+        "   it eq                               \n"
+        "   vldmiaeq r0!, {s16-s31}             \n"
+        "                                       \n"
+        "   msr psp, r0                         \n"
+        "   isb                                 \n"
+        "                                       \n"
         #ifdef WORKAROUND_PMU_CM001 /* XMC4000 specific errata workaround. */
             #if WORKAROUND_PMU_CM001 == 1
-                "			push { r14 }				\n"
-                "			pop { pc }					\n"
+                "           push { r14 }                \n"
+                "           pop { pc }                  \n"
             #endif
         #endif
-        "										\n"
-        "	bx r14								\n"
-        "										\n"
-        "	.align 4							\n"
-        "pxCurrentTCBConst: .word pxCurrentTCB	\n"
+        "                                       \n"
+        "   bx r14                              \n"
+        "                                       \n"
+        "   .align 4                            \n"
+        "pxCurrentTCBConst: .word pxCurrentTCB  \n"
         ::"i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY )
     );
 }
@@ -518,13 +582,20 @@ void xPortSysTickHandler( void )
      * save and then restore the interrupt mask value as its value is already
      * known. */
     portDISABLE_INTERRUPTS();
+    traceISR_ENTER();
     {
         /* Increment the RTOS tick. */
         if( xTaskIncrementTick() != pdFALSE )
         {
+            traceISR_EXIT_TO_SCHEDULER();
+
             /* A context switch is required.  Context switching is performed in
              * the PendSV interrupt.  Pend the PendSV interrupt. */
             portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+        }
+        else
+        {
+            traceISR_EXIT();
         }
     }
     portENABLE_INTERRUPTS();
@@ -782,13 +853,13 @@ static void vPortEnableVFP( void )
 {
     __asm volatile
     (
-        "	ldr.w r0, =0xE000ED88		\n"/* The FPU enable bits are in the CPACR. */
-        "	ldr r1, [r0]				\n"
-        "								\n"
-        "	orr r1, r1, #( 0xf << 20 )	\n"/* Enable CP10 and CP11 coprocessors, then save back. */
-        "	str r1, [r0]				\n"
-        "	bx r14						\n"
-        "	.ltorg						\n"
+        "   ldr.w r0, =0xE000ED88       \n" /* The FPU enable bits are in the CPACR. */
+        "   ldr r1, [r0]                \n"
+        "                               \n"
+        "   orr r1, r1, #( 0xf << 20 )  \n" /* Enable CP10 and CP11 coprocessors, then save back. */
+        "   str r1, [r0]                \n"
+        "   bx r14                      \n"
+        "   .ltorg                      \n"
     );
 }
 /*-----------------------------------------------------------*/
@@ -821,10 +892,10 @@ static void vPortEnableVFP( void )
              * be set to a value equal to or numerically *higher* than
              * configMAX_SYSCALL_INTERRUPT_PRIORITY.
              *
-             * Interrupts that	use the FreeRTOS API must not be left at their
-             * default priority of	zero as that is the highest possible priority,
+             * Interrupts that  use the FreeRTOS API must not be left at their
+             * default priority of  zero as that is the highest possible priority,
              * which is guaranteed to be above configMAX_SYSCALL_INTERRUPT_PRIORITY,
-             * and	therefore also guaranteed to be invalid.
+             * and  therefore also guaranteed to be invalid.
              *
              * FreeRTOS maintains separate thread and ISR API functions to ensure
              * interrupt entry is as fast and simple as possible.

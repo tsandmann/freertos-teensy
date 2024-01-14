@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2023 Timo Sandmann
+ * Copyright (c) 2020-2024 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -220,7 +220,6 @@ void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
-void init_retarget_locks() FLASHMEM;
 
 void vPortSetupTimerInterrupt() {
     if (DEBUG) {
@@ -256,8 +255,6 @@ void vPortSetupTimerInterrupt() {
 
     freertos::setup_event_responder();
 
-    init_retarget_locks();
-
     if (DEBUG) {
         EXC_PRINTF(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
     }
@@ -274,6 +271,8 @@ void vApplicationTickHook() {
         n = 0;
     }
 }
+#else
+#error "configUSE_TICK_HOOK == 0 isn't supported!"
 #endif // configUSE_TICK_HOOK
 } // extern C
 

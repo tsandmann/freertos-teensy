@@ -1,8 +1,8 @@
 // clang-format off
 
 /*
- * FreeRTOS Kernel V10.5.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V11.0.1
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -24,7 +24,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * https://www.FreeRTOS.org
- * https://aws.amazon.com/freertos
+ * https://github.com/FreeRTOS
  *
  */
 
@@ -58,7 +58,7 @@ extern "C" {
 #define configMAX_PRIORITIES                        ( 10 )
 #define configMINIMAL_STACK_SIZE                    ( ( unsigned short ) 128 )
 #define configMAX_TASK_NAME_LEN                     ( 10 )
-#define configUSE_16_BIT_TICKS                      0
+#define configTICK_TYPE_WIDTH_IN_BITS               TICK_TYPE_WIDTH_32_BITS
 #define configIDLE_SHOULD_YIELD                     1
 #define configUSE_TASK_NOTIFICATIONS                1
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES       4
@@ -113,12 +113,14 @@ extern "C" {
 
 /* Define to trap errors during development. */
 #ifdef NDEBUG
+#define configCHECK_HANDLER_INSTALLATION            0
 #define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   0
 #define configASSERT(condition) ((void) 0)
 #define putchar_debug(...)
 #define printf_debug(...)
 #define ASSERT_LOG(...)
 #else
+#define configCHECK_HANDLER_INSTALLATION            1
 #define configUSE_LIST_DATA_INTEGRITY_CHECK_BYTES   1
 #ifdef __cplusplus
 extern "C" {
@@ -181,10 +183,10 @@ to exclude the API function. */
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
-/* __BVIC_PRIO_BITS will be specified when CMSIS is being used. */
-	#define configPRIO_BITS                         __NVIC_PRIO_BITS
+    /* __BVIC_PRIO_BITS will be specified when CMSIS is being used. */
+    #define configPRIO_BITS                         __NVIC_PRIO_BITS
 #else
-	#define configPRIO_BITS                         4 /* 15 priority levels */
+    #define configPRIO_BITS                         4 /* 15 priority levels */
 #endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"

@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2023 Timo Sandmann
+ * Copyright (c) 2020-2024 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

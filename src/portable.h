@@ -1,5 +1,5 @@
 /*
- * FreeRTOS Kernel V10.5.1
+ * FreeRTOS Kernel V11.0.1
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
@@ -110,23 +110,29 @@
                                              StackType_t * pxEndOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters,
-                                             BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ) ));
+                                             BaseType_t xRunPrivileged,
+                                             xMPU_SETTINGS * xMPUSettings ) PRIVILEGED_FUNCTION
+                                             __attribute__ (( section( ".flashmem" ) ));
     #else
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters,
-                                             BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ) ));
-    #endif
+                                             BaseType_t xRunPrivileged,
+                                             xMPU_SETTINGS * xMPUSettings ) PRIVILEGED_FUNCTION
+                                             __attribute__ (( section( ".flashmem" ) ));
+    #endif /* if ( portHAS_STACK_OVERFLOW_CHECKING == 1 ) */
 #else /* if ( portUSING_MPU_WRAPPERS == 1 ) */
     #if ( portHAS_STACK_OVERFLOW_CHECKING == 1 )
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              StackType_t * pxEndOfStack,
                                              TaskFunction_t pxCode,
-                                             void * pvParameters ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ) ));
+                                             void * pvParameters ) PRIVILEGED_FUNCTION
+                                             __attribute__ (( section( ".flashmem" ) ));
     #else
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              TaskFunction_t pxCode,
-                                             void * pvParameters ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ) ));
+                                             void * pvParameters ) PRIVILEGED_FUNCTION
+                                             __attribute__ (( section( ".flashmem" ) ));
     #endif
 #endif /* if ( portUSING_MPU_WRAPPERS == 1 ) */
 
@@ -198,7 +204,7 @@ size_t xPortGetMinimumEverFreeHeapSize( void ) PRIVILEGED_FUNCTION;
  *
  * This hook function is called when allocation failed.
  */
-    void vApplicationMallocFailedHook( void ); /*lint !e526 Symbol not defined as it is an application callback. */
+    void vApplicationMallocFailedHook( void ) __attribute__ (( section( ".flashmem" ), noinline ));
 #endif
 
 /*
@@ -212,7 +218,7 @@ BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION __attribute__ (( sect
  * the hardware is left in its original condition after the scheduler stops
  * executing.
  */
-void vPortEndScheduler( void ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ) ));
+void vPortEndScheduler( void ) PRIVILEGED_FUNCTION __attribute__ (( section( ".flashmem" ), noinline ));
 
 /*
  * The structures and methods of manipulating the MPU are contained within the
@@ -227,6 +233,37 @@ void vPortEndScheduler( void ) PRIVILEGED_FUNCTION __attribute__ (( section( ".f
                                     const struct xMEMORY_REGION * const xRegions,
                                     StackType_t * pxBottomOfStack,
                                     uint32_t ulStackDepth ) PRIVILEGED_FUNCTION;
+#endif
+
+/**
+ * @brief Checks if the calling task is authorized to access the given buffer.
+ *
+ * @param pvBuffer The buffer which the calling task wants to access.
+ * @param ulBufferLength The length of the pvBuffer.
+ * @param ulAccessRequested The permissions that the calling task wants.
+ *
+ * @return pdTRUE if the calling task is authorized to access the buffer,
+ *         pdFALSE otherwise.
+ */
+#if ( portUSING_MPU_WRAPPERS == 1 )
+    BaseType_t xPortIsAuthorizedToAccessBuffer( const void * pvBuffer,
+                                                uint32_t ulBufferLength,
+                                                uint32_t ulAccessRequested ) PRIVILEGED_FUNCTION;
+#endif
+
+/**
+ * @brief Checks if the calling task is authorized to access the given kernel object.
+ *
+ * @param lInternalIndexOfKernelObject The index of the kernel object in the kernel
+ *                                     object handle pool.
+ *
+ * @return pdTRUE if the calling task is authorized to access the kernel object,
+ *         pdFALSE otherwise.
+ */
+#if ( ( portUSING_MPU_WRAPPERS == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) )
+
+    BaseType_t xPortIsAuthorizedToAccessKernelObject( int32_t lInternalIndexOfKernelObject ) PRIVILEGED_FUNCTION;
+
 #endif
 
 /* *INDENT-OFF* */

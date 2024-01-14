@@ -1,6 +1,6 @@
 /*
- * FreeRTOS Kernel V10.4.1 task additions
- * Copyright (C) 2021 Timo Sandmann.  All Rights Reserved.
+ * FreeRTOS Kernel V11.0.1 task additions
+ * Copyright (C) 2021-2024 Timo Sandmann.  All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in

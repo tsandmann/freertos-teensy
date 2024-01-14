@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2023 Timo Sandmann
+ * Copyright (c) 2020-2024 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,21 +26,20 @@
 #define _DEFAULT_SOURCE
 #include <cstring>
 #include <unistd.h>
-#include <malloc.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <sys/lock.h>
 #include <unwind.h>
 #include <tuple>
 #include <cstdarg>
-#include <atomic>
 
 #include "avr/pgmspace.h"
 #include "teensy.h"
 #include "event_responder_support.h"
 
-#include "semphr.h"
 
+#if !(defined ARDUINO_TEENSY40 || defined ARDUINO_TEENSY41 || defined __MK64FX512__ || defined __MK66FX1M0__)
+#error "Unsupported board"
+#endif
 
 static constexpr bool DEBUG { false };
 
@@ -378,64 +377,6 @@ void* _sbrk(ptrdiff_t incr) {
 };
 #endif // PLATFORMIO || TEENSYDUINO >= 158
 
-static std::atomic<uint32_t> malloc_nesting {};
-static uint32_t malloc_irq_mask { ~0U };
-
-void __malloc_lock(struct _reent*) {
-    const auto old_nesting { malloc_nesting.fetch_add(1) };
-
-    if (__builtin_expect(old_nesting, 0) == 0) {
-        configASSERT(malloc_irq_mask == ~0U);
-        malloc_irq_mask = ::ulPortRaiseBASEPRI();
-        if (DEBUG) {
-            EXC_PRINTF(PSTR("__malloc_lock(): BASEPRI was 0x%x\r\n"), malloc_irq_mask);
-        }
-    }
-
-    if (DEBUG) {
-        EXC_PRINTF(PSTR("__malloc_lock(): malloc_nesting=%u\r\n"), malloc_nesting.load());
-    }
-};
-
-void __malloc_unlock(struct _reent*) {
-    const auto old_nesting { malloc_nesting.load() };
-    configASSERT(old_nesting);
-    malloc_nesting = old_nesting - 1;
-
-    if (__builtin_expect(old_nesting, 1) == 1) {
-        configASSERT(malloc_irq_mask != ~0U);
-        const auto tmp { malloc_irq_mask };
-        malloc_irq_mask = ~0U;
-        ::vPortSetBASEPRI(tmp);
-
-        if (DEBUG) {
-            EXC_PRINTF(PSTR("__malloc_unlock(): BASEPRI set to 0x%x\r\n"), tmp);
-        }
-    }
-
-    if (DEBUG) {
-        EXC_PRINTF(PSTR("__malloc_unlock(): malloc_nesting=%u\r\n"), malloc_nesting.load());
-    }
-};
-
-// newlib also requires implementing locks for the application's environment memory space,
-// accessed by newlib's setenv() and getenv() functions.
-void __env_lock() {
-    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::vTaskSuspendAll();
-    }
-};
-
-void __env_unlock() {
-    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::xTaskResumeAll();
-    }
-};
-
-int _getpid() {
-    return reinterpret_cast<int>(::xTaskGetCurrentTaskHandle());
-}
-
 FLASHMEM int _gettimeofday(timeval* tv, void*) {
     const auto p_offset { freertos::clock::get_offset() };
 
@@ -446,141 +387,16 @@ FLASHMEM int _gettimeofday(timeval* tv, void*) {
     return 0;
 }
 
-FLASHMEM size_t xPortGetFreeHeapSize() {
-    const struct mallinfo mi = ::mallinfo();
-    return mi.fordblks;
-}
-
 #if configGENERATE_RUN_TIME_STATS == 1
 uint64_t freertos_get_us() {
     return freertos::get_us();
 }
 #endif // configGENERATE_RUN_TIME_STATS
 
-#if configSUPPORT_STATIC_ALLOCATION == 1
-FLASHMEM void vApplicationGetIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer, StackType_t** ppxIdleTaskStackBuffer, uint32_t* pulIdleTaskStackSize) {
-    static StaticTask_t xIdleTaskTCB;
-    static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE] __attribute__((used, aligned(8)));
+void init_newlib_locks() FLASHMEM;
 
-    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
-    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
-    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
-}
-
-#if configUSE_TIMERS == 1
-FLASHMEM void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackType_t** ppxTimerTaskStackBuffer, uint32_t* pulTimerTaskStackSize) {
-    static StaticTask_t xTimerTaskTCB;
-    static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH] __attribute__((used, aligned(8)));
-
-    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
-    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
-    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
-}
-#endif // configUSE_TIMERS
-
-
-StaticSemaphore_t __lock___sinit_recursive_mutex;
-StaticSemaphore_t __lock___sfp_recursive_mutex;
-StaticSemaphore_t __lock___atexit_recursive_mutex;
-StaticSemaphore_t __lock___at_quick_exit_mutex;
-StaticSemaphore_t __lock___env_recursive_mutex;
-StaticSemaphore_t __lock___tz_mutex;
-StaticSemaphore_t __lock___dd_hash_mutex;
-StaticSemaphore_t __lock___arc4random_mutex;
-static bool __locks_initialized {};
-
-FLASHMEM void init_retarget_locks() {
-    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sinit_recursive_mutex);
-    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___sfp_recursive_mutex);
-    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___atexit_recursive_mutex);
-    ::xSemaphoreCreateMutexStatic(&__lock___at_quick_exit_mutex);
-    ::xSemaphoreCreateRecursiveMutexStatic(&__lock___env_recursive_mutex);
-    ::xSemaphoreCreateMutexStatic(&__lock___tz_mutex);
-    ::xSemaphoreCreateMutexStatic(&__lock___dd_hash_mutex);
-    ::xSemaphoreCreateMutexStatic(&__lock___arc4random_mutex);
-    __locks_initialized = true;
-}
-#else // configSUPPORT_STATIC_ALLOCATION == 0
-#warning "untested!"
-SemaphoreHandle_t __lock___sinit_recursive_mutex;
-SemaphoreHandle_t __lock___sfp_recursive_mutex;
-SemaphoreHandle_t __lock___atexit_recursive_mutex;
-SemaphoreHandle_t __lock___at_quick_exit_mutex;
-SemaphoreHandle_t __lock___env_recursive_mutex;
-SemaphoreHandle_t __lock___tz_mutex;
-SemaphoreHandle_t __lock___dd_hash_mutex;
-SemaphoreHandle_t __lock___arc4random_mutex;
-
-FLASHMEM void init_retarget_locks() {
-    __lock___sinit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
-    __lock___sfp_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
-    __lock___atexit_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
-    __lock___at_quick_exit_mutex = ::xSemaphoreCreateMutex();
-    __lock___env_recursive_mutex = ::xSemaphoreCreateRecursiveMutex();
-    __lock___tz_mutex = ::xSemaphoreCreateMutex();
-    __lock___dd_hash_mutex = ::xSemaphoreCreateMutex();
-    __lock___arc4random_mutex = ::xSemaphoreCreateMutex();
-    __locks_initialized = true;
-}
-#endif // configSUPPORT_STATIC_ALLOCATION
-
-void __retarget_lock_init(_LOCK_T* lock_ptr) {
-    auto ptr { reinterpret_cast<QueueHandle_t*>(lock_ptr) };
-    *ptr = ::xSemaphoreCreateMutex();
-}
-
-void __retarget_lock_init_recursive(_LOCK_T* lock_ptr) {
-    auto ptr { reinterpret_cast<QueueHandle_t*>(lock_ptr) };
-    *ptr = ::xSemaphoreCreateRecursiveMutex();
-}
-
-void __retarget_lock_close(_LOCK_T lock) {
-    if (__locks_initialized) {
-        ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
-    }
-}
-
-void __retarget_lock_close_recursive(_LOCK_T lock) {
-    if (__locks_initialized) {
-        ::vSemaphoreDelete(reinterpret_cast<QueueHandle_t>(lock));
-    }
-}
-
-void __retarget_lock_acquire(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
-    }
-}
-
-void __retarget_lock_acquire_recursive(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), portMAX_DELAY);
-    }
-}
-
-int __retarget_lock_try_acquire(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        return ::xSemaphoreTake(reinterpret_cast<QueueHandle_t>(lock), 0);
-    }
-    return 0;
-}
-
-int __retarget_lock_try_acquire_recursive(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        return ::xSemaphoreTakeRecursive(reinterpret_cast<QueueHandle_t>(lock), 0);
-    }
-    return 0;
-}
-
-void __retarget_lock_release(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::xSemaphoreGive(reinterpret_cast<QueueHandle_t>(lock));
-    }
-}
-
-void __retarget_lock_release_recursive(_LOCK_T lock) {
-    if (__locks_initialized && ::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-        ::xSemaphoreGiveRecursive(reinterpret_cast<QueueHandle_t>(lock));
-    }
+void startup_late_hook() __attribute__((noinline, section(".flashmem")));
+void startup_late_hook() {
+    init_newlib_locks();
 }
 } // extern C

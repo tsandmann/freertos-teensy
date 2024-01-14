@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2023 Timo Sandmann
+ * Copyright (c) 2020-2024 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -46,7 +46,7 @@ void setup_event_responder() {
         PSTR("YIELD"), YIELD_TASK_STACK_SIZE, nullptr, YIELD_TASK_PRIORITY, &g_yield_task);
 
     auto p_event_timer_ { ::xTimerCreate(PSTR("event_t"), pdMS_TO_TICKS(1), true, nullptr, [](TimerHandle_t) { ::MillisTimer::runFromTimer(); }) };
-    ::xTimerStart(p_event_timer_, 0);
+    xTimerStart(p_event_timer_, 0);
 
     ::xTaskCreate(
         [](void*) {

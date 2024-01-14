@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2023 Timo Sandmann
+ * Copyright (c) 2020-2024 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -183,11 +183,7 @@ FLASHMEM void yield() {
 #if !defined DISABLE_ARDUINO_HWSERIAL
     // Current workaround until integrate with EventResponder.
     if (check_flags & YIELD_CHECK_HARDWARE_SERIAL) {
-#ifdef FLEXIO_TIMCFG_STARTBIT_DISABLED // workaround to check for Teensyduino >= 1.59 Beta 4
         HardwareSerialIMXRT::processSerialEventsList();
-#else
-        HardwareSerial::processSerialEventsList();
-#endif
     }
 #endif // !DISABLE_ARDUINO_HWSERIAL
 
@@ -273,7 +269,6 @@ void xPortPendSVHandler();
 void xPortSysTickHandler();
 void vPortSVCHandler();
 void vPortSetupTimerInterrupt() FLASHMEM;
-void init_retarget_locks() FLASHMEM;
 void unused_interrupt_vector();
 
 /**
@@ -360,8 +355,6 @@ void vPortSetupTimerInterrupt() {
 
     freertos::setup_event_responder();
 
-    init_retarget_locks();
-
     if (DEBUG) {
         EXC_PRINTF_EARLY(PSTR("SCB_SHPR3=0x%x\r\n"), SCB_SHPR3);
         EXC_PRINTF_EARLY(PSTR("vPortSetupTimerInterrupt() done.\r\n"));
@@ -381,6 +374,8 @@ void vApplicationTickHook() {
         n = 0;
     }
 }
+#else
+#error "configUSE_TICK_HOOK == 0 isn't supported!"
 #endif // configUSE_TICK_HOOK
 
 /// This struct definition mimics the internal structures of libgcc in
@@ -525,9 +520,11 @@ void HardFault_HandlerC(unsigned int* hardfault_args) {
     EXC_PRINTF(PSTR(" _BFAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED38));
     EXC_PRINTF(PSTR(" _MMAR:       0x%x\r\n"), *reinterpret_cast<volatile unsigned int*>(0xE000ED34));
 
-    auto p_active_task { pxGetTaskFromStack(reinterpret_cast<StackType_t*>(sp)) };
-    EXC_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
-    EXC_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
+    if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        auto p_active_task { pxGetTaskFromStack(reinterpret_cast<StackType_t*>(sp)) };
+        EXC_PRINTF(PSTR("\nActive task (TCB): %s\r\n"), pcTaskGetName(nullptr));
+        EXC_PRINTF(PSTR("Active task (stack): %s\r\n"), p_active_task ? pcTaskGetName(p_active_task) : PSTR("unknown"));
+    }
 
     EXC_PRINTF(PSTR("\r\nStack trace:\r\n"));
     phase2_vrs pre_signal_state = {};
