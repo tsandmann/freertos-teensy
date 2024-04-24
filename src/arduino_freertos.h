@@ -53,7 +53,7 @@
 #include "SpiDriver/SdSpiArduinoDriver.h"
 #endif
 
-/* get rid of these stupid macros, as they are incompatible with C++ stdlib */
+/* get rid of these macros, as they are incompatible with C++ stdlib */
 #undef false
 #undef true
 #undef bit
@@ -103,6 +103,20 @@
 #undef digitalPinHasPWM
 #undef LED_BUILTIN
 #endif // USE_ARDUINO_DEFINES
+
+
+#define SECTION_TO_STRING(_x) #_x
+#define SECTION_HELPER(_section, _tag) __attribute__((section(SECTION_TO_STRING(._section._tag))))
+#define PROGMEM_T(_tag) SECTION_HELPER(progmem, _tag)
+#define FLASHMEM_T(_tag) SECTION_HELPER(flashmem, _tag)
+#define PSTR_T(str, _tag) ({static const char data[] SECTION_HELPER(progmem, _tag) = (str); &data[0]; })
+#define PSTR_SV(str)                                                                        \
+    ({                                                                                      \
+        __attribute__((section(".progmem.sv"))) static const char _str[] { str };           \
+        __attribute__((section(".progmem.sv"))) static const std::string_view _sv { _str }; \
+        _sv;                                                                                \
+    })
+
 
 namespace arduino {
 using ::analogRead;
