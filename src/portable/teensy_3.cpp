@@ -236,6 +236,14 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[15] = xPortSysTickHandler;
     __NVIC_SetPriorityGrouping(0);
 
+    /* reset all ISR priorities to default value */
+    for (size_t i {}; i < NVIC_NUM_INTERRUPTS; ++i) {
+        NVIC_SET_PRIORITY(i, 128);
+    }
+
+    portDATA_SYNC_BARRIER();
+    portINSTR_SYNC_BARRIER();
+
     /* configure SysTick to interrupt at the requested rate */
     static_assert(
         (static_cast<int32_t>(configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1) > 0, "unsupported configTICK_RATE_HZ for the used clock source detected!");

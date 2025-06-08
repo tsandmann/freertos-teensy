@@ -261,8 +261,8 @@ FLASHMEM void print_ram_usage() {
     const auto info2 { ram2_usage() };
 
     EXC_PRINTF(PSTR("RAM1 size: %u KB, free RAM1: %u KB, data used: %u KB, bss used: %u KB, used heap: %u KB, system free: %u KB\r\n"),
-        std::get<5>(info1) / 1'024UL, std::get<0>(info1) / 1'024UL, std::get<1>(info1) / 1'024UL, std::get<2>(info1) / 1'024UL, std::get<3>(info1) / 1'024UL,
-        std::get<4>(info1) / 1'024UL);
+        (std::get<6>(info1) - std::get<5>(info1)) / 1'024UL, std::get<0>(info1) / 1'024UL, std::get<1>(info1) / 1'024UL, std::get<2>(info1) / 1'024UL,
+        std::get<3>(info1) / 1'024UL, std::get<4>(info1) / 1'024UL);
     EXC_PRINTF(PSTR("RAM2 size: %u KB, free RAM2: %u KB, used RAM2: %u KB\r\n"), std::get<1>(info2) / 1'024UL, std::get<0>(info2) / 1'024UL,
         (std::get<1>(info2) - std::get<0>(info2)) / 1'024UL);
     EXC_PRINTF(PSTR("\r\n"));
@@ -297,13 +297,14 @@ void event_responder_set_pend_sv() {
 
 FLASHMEM void yield() {
     if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED && freertos::g_yield_task) {
-        if (xPortIsInsideInterrupt() == pdTRUE) {
+        if (::xPortIsInsideInterrupt() == pdTRUE) {
             BaseType_t higher_woken { pdFALSE };
             ::xTaskNotifyFromISR(freertos::g_yield_task, 0, eNoAction, &higher_woken);
             portYIELD_FROM_ISR(higher_woken);
             portDATA_SYNC_BARRIER(); // mitigate arm errata #838869
         } else {
             ::xTaskNotify(freertos::g_yield_task, 0, eNoAction);
+            ::vTaskDelay(1);
         }
     } else {
         freertos::yield();

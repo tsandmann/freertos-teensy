@@ -57,8 +57,10 @@ extern unsigned long _sbss;
 extern unsigned long _ebss;
 extern unsigned long _sdata;
 extern unsigned long _edata;
+#ifdef ARDUINO_TEENSY41
 extern unsigned long _extram_start;
 extern unsigned long _extram_end;
+#endif // ARDUINO_TEENSY41
 extern unsigned long _itcm_block_count;
 extern uint8_t* _g_current_heap_end;
 
@@ -231,10 +233,14 @@ FLASHMEM std::tuple<size_t, size_t> ram2_usage() {
 }
 
 FLASHMEM std::tuple<size_t, size_t> ram3_usage() {
+#ifdef ARDUINO_TEENSY41
     const size_t ram_size { static_cast<size_t>(external_psram_size * (1 << 20)) };
     const size_t free { ram_size - static_cast<size_t>(reinterpret_cast<uint8_t*>(&_extram_end) - reinterpret_cast<uint8_t*>(&_extram_start)) };
 
     const std::tuple<size_t, size_t> ret { free, ram_size };
+#else
+    const std::tuple<size_t, size_t> ret { 0, 0 };
+#endif
     return ret;
 }
 
@@ -332,6 +338,11 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
     __NVIC_SetPriorityGrouping(0);
+
+    /* reset all ISR priorities to default value */
+    for (size_t i {}; i < NVIC_NUM_INTERRUPTS; ++i) {
+        NVIC_SET_PRIORITY(i, 128);
+    }
 
     portDATA_SYNC_BARRIER();
     portINSTR_SYNC_BARRIER();
