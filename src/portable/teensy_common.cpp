@@ -315,9 +315,8 @@ FLASHMEM void yield() {
 void vApplicationIdleHook() {}
 #endif // configUSE_IDLE_HOOK
 
-void vApplicationStackOverflowHook(TaskHandle_t, char*) FLASHMEM;
-
-void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
+#if configCHECK_FOR_STACK_OVERFLOW > 0
+FLASHMEM void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     static char taskname[configMAX_TASK_NAME_LEN + 1];
 
     std::memcpy(taskname, task_name, configMAX_TASK_NAME_LEN);
@@ -326,6 +325,30 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 
     freertos::error_blink(3);
 }
+#endif // configCHECK_FOR_STACK_OVERFLOW > 0
+
+#if configSUPPORT_STATIC_ALLOCATION == 1
+FLASHMEM void vApplicationGetIdleTaskMemory(
+    StaticTask_t** ppxIdleTaskTCBBuffer, StackType_t** ppxIdleTaskStackBuffer, configSTACK_DEPTH_TYPE* pulIdleTaskStackSize) {
+    static StaticTask_t xIdleTaskTCB;
+    static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE] __attribute__((used, aligned(8)));
+
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+
+#if configUSE_TIMERS == 1
+FLASHMEM void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackType_t** ppxTimerTaskStackBuffer, uint32_t* pulTimerTaskStackSize) {
+    static StaticTask_t xTimerTaskTCB;
+    static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH] __attribute__((used, aligned(8)));
+
+    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
+    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+}
+#endif // configUSE_TIMERS
+#endif // configSUPPORT_STATIC_ALLOCATION
 
 #if defined PLATFORMIO || TEENSYDUINO >= 158
 #if configUSE_MALLOC_FAILED_HOOK == 1
