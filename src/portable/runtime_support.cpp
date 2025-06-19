@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,8 +17,8 @@
  */
 
 /**
- * @file    newlib_support.cpp
- * @brief   FreeRTOS support implementations for newlib 4
+ * @file    runtime_support.cpp
+ * @brief   FreeRTOS support implementations for gcc and newlib 4
  * @author  Timo Sandmann
  * @date    04.02.2024
  */
@@ -43,25 +43,33 @@
 #error "Unsupported board"
 #endif
 
+#if configUSE_NEWLIB_REENTRANT == 1 && configSUPPORT_STATIC_ALLOCATION != 1
+#error "configSUPPORT_STATIC_ALLOCATION must be 1 when configUSE_NEWLIB_REENTRANT is 1"
+#endif
+
+
+static constexpr bool FREERTOS_LOCKS_DEBUG_ { false };
 
 extern "C" {
+struct __malloc_lock_t {
+    uint8_t nesting;
+    uint8_t basepri;
+};
+
 union cxa_guard_t {
     uint8_t initialized_;
     uint32_t dummy_;
 };
 
-static std::atomic<uint32_t> g_malloc_nesting {};
-static uint32_t g_malloc_irq_mask { ~0U };
-static SemaphoreHandle_t g_cxa_guard_recursive_mutex;
-
-#if configUSE_NEWLIB_REENTRANT == 1
-#if configSUPPORT_STATIC_ALLOCATION != 1
-#error "configSUPPORT_STATIC_ALLOCATION must be 1 when configUSE_NEWLIB_REENTRANT is 1"
-#endif
-
 struct __lock {
     StaticSemaphore_t sem;
 };
+
+static __malloc_lock_t g_malloc_lock { .nesting = 0, .basepri = 0xff };
+static SemaphoreHandle_t g_cxa_guard_recursive_mutex;
+#if configSUPPORT_STATIC_ALLOCATION == 1
+static StaticSemaphore_t g_cxa_guard_mutex_buffer;
+#endif
 
 __lock __lock___sfp_recursive_mutex;
 __lock __lock___atexit_recursive_mutex;
@@ -70,30 +78,25 @@ __lock __lock___env_recursive_mutex;
 __lock __lock___tz_mutex;
 __lock __lock___dd_hash_mutex;
 __lock __lock___arc4random_mutex;
-#endif // configUSE_NEWLIB_REENTRANT
 
 
 void __malloc_lock(struct _reent*) {
-    const auto old_nesting { g_malloc_nesting.fetch_add(1) };
+    const auto saved_basepri { ulPortRaiseBASEPRI() };
+    ++g_malloc_lock.nesting;
 
-    if (__builtin_expect(old_nesting, 0) == 0) {
-        configASSERT(g_malloc_irq_mask == ~0U);
-        g_malloc_irq_mask = ulPortRaiseBASEPRI();
+    if (g_malloc_lock.nesting == 1) {
+        g_malloc_lock.basepri = saved_basepri;
     }
-};
+}
 
 void __malloc_unlock(struct _reent*) {
-    const auto old_nesting { g_malloc_nesting.load() };
-    configASSERT(old_nesting);
-    g_malloc_nesting = old_nesting - 1;
+    --g_malloc_lock.nesting;
 
-    if (__builtin_expect(old_nesting, 1) == 1) {
-        configASSERT(g_malloc_irq_mask != ~0U);
-        const auto tmp { g_malloc_irq_mask };
-        g_malloc_irq_mask = ~0U;
-        vPortSetBASEPRI(tmp);
+    if (g_malloc_lock.nesting == 0) {
+        vPortSetBASEPRI(g_malloc_lock.basepri);
     }
-};
+}
+
 
 int __cxa_guard_acquire(__cxxabiv1::__guard* guard) {
     auto p_guard { reinterpret_cast<cxa_guard_t*>(guard) };
@@ -121,6 +124,7 @@ int __cxa_guard_acquire(__cxxabiv1::__guard* guard) {
 
 void __cxa_guard_abort(__cxxabiv1::__guard*) {
     configASSERT(xPortIsInsideInterrupt() != pdTRUE);
+
     if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         xSemaphoreGiveRecursive(g_cxa_guard_recursive_mutex);
     }
@@ -133,7 +137,8 @@ void __cxa_guard_release(__cxxabiv1::__guard* guard) {
     __cxa_guard_abort(guard); // release mutex
 }
 
-FLASHMEM void init_newlib_locks() {
+
+FLASHMEM void freertos_lock_init() {
     /* temporarily increase systick priority */
     SCB_SHPR3 = 255UL << 16UL;
 
@@ -148,13 +153,12 @@ FLASHMEM void init_newlib_locks() {
     portINSTR_SYNC_BARRIER();
 
 #if configSUPPORT_STATIC_ALLOCATION == 1
-    static StaticSemaphore_t s_mutex_buffer;
-    g_cxa_guard_recursive_mutex = xSemaphoreCreateRecursiveMutexStatic(&s_mutex_buffer);
+    g_cxa_guard_recursive_mutex = xSemaphoreCreateRecursiveMutexStatic(&g_cxa_guard_mutex_buffer);
 #else // configSUPPORT_STATIC_ALLOCATION != 1
     g_cxa_guard_recursive_mutex = xSemaphoreCreateRecursiveMutex();
 #endif // configSUPPORT_STATIC_ALLOCATION
 
-#if configUSE_NEWLIB_REENTRANT == 1 && configSUPPORT_STATIC_ALLOCATION == 1
+#if configUSE_NEWLIB_REENTRANT == 1
     xSemaphoreCreateRecursiveMutexStatic(&__lock___sfp_recursive_mutex.sem);
     xSemaphoreCreateRecursiveMutexStatic(&__lock___atexit_recursive_mutex.sem);
     xSemaphoreCreateMutexStatic(&__lock___at_quick_exit_mutex.sem);
@@ -166,18 +170,16 @@ FLASHMEM void init_newlib_locks() {
 }
 
 
-#if configUSE_NEWLIB_REENTRANT == 1 && configSUPPORT_STATIC_ALLOCATION == 1
-static constexpr bool NEWLIB_LOCKS_DEBUG_ { false };
-
+#if configUSE_NEWLIB_REENTRANT == 1
 FLASHMEM static void lock_init(_LOCK_T* p_lock_ptr, bool recursive) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("lock_init(0x%x, %u)\r\n"), p_lock_ptr, recursive);
         configASSERT(p_lock_ptr);
     }
 
     auto p_sem_buffer { static_cast<_LOCK_T>(malloc(sizeof(__lock))) };
 
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         configASSERT(p_sem_buffer);
         Serial.printf(PSTR("lock_init():p_sem_buffer=0x%x\r\n"), p_sem_buffer);
     }
@@ -185,14 +187,13 @@ FLASHMEM static void lock_init(_LOCK_T* p_lock_ptr, bool recursive) {
     recursive ? xSemaphoreCreateRecursiveMutexStatic(&p_sem_buffer->sem) : xSemaphoreCreateMutexStatic(&p_sem_buffer->sem);
     *p_lock_ptr = p_sem_buffer;
 
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("lock_init(): &p_sem_buffer->sem=0x%x\r\n"), &p_sem_buffer->sem);
     }
 }
 
-
 FLASHMEM void __retarget_lock_init(_LOCK_T* p_lock_ptr) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_init(0x%x)\r\n"), p_lock_ptr);
     }
 
@@ -200,7 +201,7 @@ FLASHMEM void __retarget_lock_init(_LOCK_T* p_lock_ptr) {
 }
 
 FLASHMEM void __retarget_lock_acquire(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_acquire(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -209,14 +210,14 @@ FLASHMEM void __retarget_lock_acquire(_LOCK_T p_lock) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
         xSemaphoreTake(handle, portMAX_DELAY);
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_acquire(): handle=0x%x\r\n"), handle);
         }
     }
 }
 
 FLASHMEM int __retarget_lock_try_acquire(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_try_acquire(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -224,7 +225,7 @@ FLASHMEM int __retarget_lock_try_acquire(_LOCK_T p_lock) {
     if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_try_acquire(): handle=0x%x\r\n"), handle);
         }
 
@@ -234,7 +235,7 @@ FLASHMEM int __retarget_lock_try_acquire(_LOCK_T p_lock) {
 }
 
 FLASHMEM void __retarget_lock_release(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_release(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -243,14 +244,14 @@ FLASHMEM void __retarget_lock_release(_LOCK_T p_lock) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
         xSemaphoreGive(handle);
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_release(): handle=0x%x\r\n"), handle);
         }
     }
 }
 
 FLASHMEM void __retarget_lock_close(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_close(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -259,13 +260,13 @@ FLASHMEM void __retarget_lock_close(_LOCK_T p_lock) {
     vSemaphoreDelete(handle);
     free(p_lock);
 
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_close(): handle=0x%x\r\n"), handle);
     }
 }
 
 FLASHMEM void __retarget_lock_init_recursive(_LOCK_T* p_lock_ptr) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_init_recursive(0x%x)\r\n"), p_lock_ptr);
     }
 
@@ -273,7 +274,7 @@ FLASHMEM void __retarget_lock_init_recursive(_LOCK_T* p_lock_ptr) {
 }
 
 FLASHMEM void __retarget_lock_acquire_recursive(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_acquire_recursive(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -282,14 +283,14 @@ FLASHMEM void __retarget_lock_acquire_recursive(_LOCK_T p_lock) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
         xSemaphoreTakeRecursive(handle, portMAX_DELAY);
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_acquire_recursive(): handle=0x%x\r\n"), handle);
         }
     }
 }
 
 FLASHMEM int __retarget_lock_try_acquire_recursive(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_try_acquire_recursive(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -298,7 +299,7 @@ FLASHMEM int __retarget_lock_try_acquire_recursive(_LOCK_T p_lock) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
         return xSemaphoreTakeRecursive(handle, 0);
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_try_acquire_recursive(): handle=0x%x\r\n"), handle);
         }
     }
@@ -307,7 +308,7 @@ FLASHMEM int __retarget_lock_try_acquire_recursive(_LOCK_T p_lock) {
 }
 
 FLASHMEM void __retarget_lock_release_recursive(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_release_recursive(0x%x)\r\n"), p_lock);
         configASSERT(p_lock);
     }
@@ -316,20 +317,45 @@ FLASHMEM void __retarget_lock_release_recursive(_LOCK_T p_lock) {
         auto handle { reinterpret_cast<SemaphoreHandle_t>(&p_lock->sem) };
         xSemaphoreGiveRecursive(handle);
 
-        if constexpr (NEWLIB_LOCKS_DEBUG_) {
+        if constexpr (FREERTOS_LOCKS_DEBUG_) {
             Serial.printf(PSTR("__retarget_lock_release_recursive(): handle=0x%x\r\n"), handle);
         }
     }
 }
 
 FLASHMEM void __retarget_lock_close_recursive(_LOCK_T p_lock) {
-    if constexpr (NEWLIB_LOCKS_DEBUG_) {
+    if constexpr (FREERTOS_LOCKS_DEBUG_) {
         Serial.printf(PSTR("__retarget_lock_close_recursive(0x%x)\r\n"), p_lock);
     }
 
     __retarget_lock_close(p_lock);
 }
-#endif // configUSE_NEWLIB_REENTRANT == 1 && configSUPPORT_STATIC_ALLOCATION == 1
+#else // configUSE_NEWLIB_REENTRANT != 1
+FLASHMEM void __retarget_lock_init(_LOCK_T*) {}
+
+FLASHMEM void __retarget_lock_acquire(_LOCK_T) {}
+
+FLASHMEM int __retarget_lock_try_acquire(_LOCK_T) {
+    return 0;
+}
+
+FLASHMEM void __retarget_lock_release(_LOCK_T) {}
+
+FLASHMEM void __retarget_lock_close(_LOCK_T) {}
+
+FLASHMEM void __retarget_lock_init_recursive(_LOCK_T*) {}
+
+FLASHMEM void __retarget_lock_acquire_recursive(_LOCK_T) {}
+
+FLASHMEM int __retarget_lock_try_acquire_recursive(_LOCK_T) {
+    return 0;
+}
+
+FLASHMEM void __retarget_lock_release_recursive(_LOCK_T) {}
+
+FLASHMEM void __retarget_lock_close_recursive(_LOCK_T) {}
+#endif // configUSE_NEWLIB_REENTRANT
+
 
 FLASHMEM size_t xPortGetFreeHeapSize() {
     const struct mallinfo mi { mallinfo() };

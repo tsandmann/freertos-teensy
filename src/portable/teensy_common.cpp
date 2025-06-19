@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -417,10 +417,8 @@ uint64_t freertos_get_us() {
 }
 #endif // configGENERATE_RUN_TIME_STATS
 
-void init_newlib_locks() FLASHMEM;
-
 void startup_late_hook() __attribute__((noinline, section(".flashmem")));
 void startup_late_hook() {
-    init_newlib_locks();
+    freertos_lock_init();
 }
 } // extern C

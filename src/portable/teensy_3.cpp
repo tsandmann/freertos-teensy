@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,7 +18,7 @@
 
 /**
  * @file    teensy_3.cpp
- * @brief   FreeRTOS support implementations for Teensy 3.5 and 3.6 boards with newlib 4
+ * @brief   FreeRTOS support implementations for Teensy 3.6 boards with newlib 4
  * @author  Timo Sandmann
  * @date    04.06.2023
  */

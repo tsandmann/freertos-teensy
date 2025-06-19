@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -46,6 +46,8 @@ class tuple;
 
 
 extern "C" {
+void freertos_lock_init();
+
 uint8_t get_debug_led_pin();
 
 void exc_printf(void (*print)(const char), const char* format, ...) __attribute__((format(printf, 2, 3)));
