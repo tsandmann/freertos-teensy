@@ -127,12 +127,9 @@ static void task3(void*) {
 }
 
 void setup() {
-    ::Serial.begin(115'200);
+    ::Serial.begin(0);
     ::pinMode(arduino::LED_BUILTIN, arduino::OUTPUT);
     ::digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
-
-    while (::millis() < 2'000) {
-    }
 
     ::Serial.println(PSTR("\r\nBooting FreeRTOS kernel " tskKERNEL_VERSION_NUMBER ". Built by gcc " __VERSION__ " (newlib " _NEWLIB_VERSION ") on " __DATE__ ". ***\r\n"));
 

@@ -24,7 +24,6 @@
  */
 
 #include "arduino_freertos.h"
-#include "avr/pgmspace.h"
 
 
 static void task1(void*) {
@@ -36,6 +35,8 @@ static void task1(void*) {
         digitalWriteFast(arduino::LED_BUILTIN, arduino::HIGH);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+
+    vTaskDelete(nullptr);
 }
 
 static void task2(void*) {
@@ -47,12 +48,12 @@ static void task2(void*) {
         Serial.println("TOCK");
         vTaskDelay(pdMS_TO_TICKS(1'000));
     }
+
+    vTaskDelete(nullptr);
 }
 
-FLASHMEM __attribute__((noinline)) void setup() {
+void setup() {
     Serial.begin(0);
-    delay(2'000);
-
     if (CrashReport) {
         Serial.print(CrashReport);
         Serial.println();
@@ -64,7 +65,7 @@ FLASHMEM __attribute__((noinline)) void setup() {
     xTaskCreate(task1, "task1", 128, nullptr, 2, nullptr);
     xTaskCreate(task2, "task2", 128, nullptr, 2, nullptr);
 
-    Serial.println("setup(): starting scheduler...");
+    Serial.println(PSTR("setup(): starting scheduler..."));
     Serial.flush();
 
     vTaskStartScheduler();

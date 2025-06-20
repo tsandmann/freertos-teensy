@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,7 +18,7 @@
 
 /**
  * @file    teensy_3.cpp
- * @brief   FreeRTOS support implementations for Teensy 3.5 and 3.6 boards with newlib 4
+ * @brief   FreeRTOS support implementations for Teensy 3.6 boards with newlib 4
  * @author  Timo Sandmann
  * @date    04.06.2023
  */
@@ -235,6 +235,14 @@ void vPortSetupTimerInterrupt() {
     _VectorsRam[14] = xPortPendSVHandler;
     _VectorsRam[15] = xPortSysTickHandler;
     __NVIC_SetPriorityGrouping(0);
+
+    /* reset all ISR priorities to default value */
+    for (size_t i {}; i < NVIC_NUM_INTERRUPTS; ++i) {
+        NVIC_SET_PRIORITY(i, 128);
+    }
+
+    portDATA_SYNC_BARRIER();
+    portINSTR_SYNC_BARRIER();
 
     /* configure SysTick to interrupt at the requested rate */
     static_assert(

@@ -1,14 +1,14 @@
 {
   "name": "freertos-teensy",
   "keywords": "FreeRTOS, Teensy",
-  "description": "FreeRTOS port for Teensy 3.5, 3.6, 4.0, 4.1",
+  "description": "FreeRTOS port for Teensy 3.6, 4.0, 4.1",
   "license": "MIT",
   "homepage": "https://www.freertos.org",
   "repository": {
     "type": "git",
     "url": "https://github.com/tsandmann/freertos-teensy"
   },
-  "version": "11.0.1-1",
+  "version": "11.2.0-3",
   "authors": [
     {
       "name": "Richard Barry",

@@ -1,6 +1,6 @@
 /*
  * This file is part of the FreeRTOS port to Teensy boards.
- * Copyright (c) 2020-2024 Timo Sandmann
+ * Copyright (c) 2020-2025 Timo Sandmann
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -261,8 +261,8 @@ FLASHMEM void print_ram_usage() {
     const auto info2 { ram2_usage() };
 
     EXC_PRINTF(PSTR("RAM1 size: %u KB, free RAM1: %u KB, data used: %u KB, bss used: %u KB, used heap: %u KB, system free: %u KB\r\n"),
-        std::get<5>(info1) / 1'024UL, std::get<0>(info1) / 1'024UL, std::get<1>(info1) / 1'024UL, std::get<2>(info1) / 1'024UL, std::get<3>(info1) / 1'024UL,
-        std::get<4>(info1) / 1'024UL);
+        (std::get<6>(info1) - std::get<5>(info1)) / 1'024UL, std::get<0>(info1) / 1'024UL, std::get<1>(info1) / 1'024UL, std::get<2>(info1) / 1'024UL,
+        std::get<3>(info1) / 1'024UL, std::get<4>(info1) / 1'024UL);
     EXC_PRINTF(PSTR("RAM2 size: %u KB, free RAM2: %u KB, used RAM2: %u KB\r\n"), std::get<1>(info2) / 1'024UL, std::get<0>(info2) / 1'024UL,
         (std::get<1>(info2) - std::get<0>(info2)) / 1'024UL);
     EXC_PRINTF(PSTR("\r\n"));
@@ -297,13 +297,14 @@ void event_responder_set_pend_sv() {
 
 FLASHMEM void yield() {
     if (::xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED && freertos::g_yield_task) {
-        if (xPortIsInsideInterrupt() == pdTRUE) {
+        if (::xPortIsInsideInterrupt() == pdTRUE) {
             BaseType_t higher_woken { pdFALSE };
             ::xTaskNotifyFromISR(freertos::g_yield_task, 0, eNoAction, &higher_woken);
             portYIELD_FROM_ISR(higher_woken);
             portDATA_SYNC_BARRIER(); // mitigate arm errata #838869
         } else {
             ::xTaskNotify(freertos::g_yield_task, 0, eNoAction);
+            ::vTaskDelay(1);
         }
     } else {
         freertos::yield();
@@ -314,9 +315,8 @@ FLASHMEM void yield() {
 void vApplicationIdleHook() {}
 #endif // configUSE_IDLE_HOOK
 
-void vApplicationStackOverflowHook(TaskHandle_t, char*) FLASHMEM;
-
-void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
+#if configCHECK_FOR_STACK_OVERFLOW > 0
+FLASHMEM void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
     static char taskname[configMAX_TASK_NAME_LEN + 1];
 
     std::memcpy(taskname, task_name, configMAX_TASK_NAME_LEN);
@@ -325,6 +325,30 @@ void vApplicationStackOverflowHook(TaskHandle_t, char* task_name) {
 
     freertos::error_blink(3);
 }
+#endif // configCHECK_FOR_STACK_OVERFLOW > 0
+
+#if configSUPPORT_STATIC_ALLOCATION == 1
+FLASHMEM void vApplicationGetIdleTaskMemory(
+    StaticTask_t** ppxIdleTaskTCBBuffer, StackType_t** ppxIdleTaskStackBuffer, configSTACK_DEPTH_TYPE* pulIdleTaskStackSize) {
+    static StaticTask_t xIdleTaskTCB;
+    static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE] __attribute__((used, aligned(8)));
+
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+
+#if configUSE_TIMERS == 1
+FLASHMEM void vApplicationGetTimerTaskMemory(StaticTask_t** ppxTimerTaskTCBBuffer, StackType_t** ppxTimerTaskStackBuffer, uint32_t* pulTimerTaskStackSize) {
+    static StaticTask_t xTimerTaskTCB;
+    static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH] __attribute__((used, aligned(8)));
+
+    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
+    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+}
+#endif // configUSE_TIMERS
+#endif // configSUPPORT_STATIC_ALLOCATION
 
 #if defined PLATFORMIO || TEENSYDUINO >= 158
 #if configUSE_MALLOC_FAILED_HOOK == 1
@@ -393,10 +417,8 @@ uint64_t freertos_get_us() {
 }
 #endif // configGENERATE_RUN_TIME_STATS
 
-void init_newlib_locks() FLASHMEM;
-
 void startup_late_hook() __attribute__((noinline, section(".flashmem")));
 void startup_late_hook() {
-    init_newlib_locks();
+    freertos_lock_init();
 }
 } // extern C

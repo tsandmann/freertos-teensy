@@ -1,6 +1,6 @@
 /*
- * FreeRTOS Kernel V11.0.1
- * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V11.2.0
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -85,6 +85,18 @@
 /* Privileged only wrappers for Task APIs. These are needed so that
  * the application can use opaque handles maintained in mpu_wrappers.c
  * with all the APIs. */
+        #if ( configUSE_MPU_WRAPPERS_V1 == 1 )
+
+/* These are not needed in v2 because they do not take a task
+ * handle and therefore, no lookup is needed. Needed in v1 because
+ * these are available as system calls in v1. */
+            #define vTaskGetRunTimeStatistics            MPU_vTaskGetRunTimeStatistics
+            #define vTaskListTasks                       MPU_vTaskListTasks
+            #define vTaskSuspendAll                      MPU_vTaskSuspendAll
+            #define xTaskCatchUpTicks                    MPU_xTaskCatchUpTicks
+            #define xTaskResumeAll                       MPU_xTaskResumeAll
+        #endif /* #if ( configUSE_MPU_WRAPPERS_V1 == 1 ) */
+
         #define xTaskCreate                              MPU_xTaskCreate
         #define xTaskCreateStatic                        MPU_xTaskCreateStatic
         #define vTaskDelete                              MPU_vTaskDelete
@@ -138,6 +150,7 @@
         #define xQueueGenericCreateStatic              MPU_xQueueGenericCreateStatic
         #define xQueueGenericReset                     MPU_xQueueGenericReset
         #define xQueueCreateSet                        MPU_xQueueCreateSet
+        #define xQueueCreateSetStatic                  MPU_xQueueCreateSetStatic
         #define xQueueRemoveFromSet                    MPU_xQueueRemoveFromSet
 
         #if ( configUSE_MPU_WRAPPERS_V1 == 0 )
@@ -165,11 +178,14 @@
         #define xTimerGetPeriod                   MPU_xTimerGetPeriod
         #define xTimerGetExpiryTime               MPU_xTimerGetExpiryTime
 
+        #if ( configUSE_MPU_WRAPPERS_V1 == 0 )
+            #define xTimerGetReloadMode           MPU_xTimerGetReloadMode
+        #endif /* #if ( configUSE_MPU_WRAPPERS_V1 == 0 ) */
+
 /* Privileged only wrappers for Timer APIs. These are needed so that
  * the application can use opaque handles maintained in mpu_wrappers.c
  * with all the APIs. */
         #if ( configUSE_MPU_WRAPPERS_V1 == 0 )
-            #define xTimerGetReloadMode            MPU_xTimerGetReloadMode
             #define xTimerCreate                   MPU_xTimerCreate
             #define xTimerCreateStatic             MPU_xTimerCreateStatic
             #define xTimerGetStaticBuffer          MPU_xTimerGetStaticBuffer
@@ -227,15 +243,8 @@
             #define xStreamBufferReceiveFromISR             MPU_xStreamBufferReceiveFromISR
             #define xStreamBufferSendCompletedFromISR       MPU_xStreamBufferSendCompletedFromISR
             #define xStreamBufferReceiveCompletedFromISR    MPU_xStreamBufferReceiveCompletedFromISR
+            #define xStreamBufferResetFromISR               MPU_xStreamBufferResetFromISR
         #endif /* #if ( configUSE_MPU_WRAPPERS_V1 == 0 ) */
-
-/* Remove the privileged function macro, but keep the PRIVILEGED_DATA
- * macro so applications can place data in privileged access sections
- * (useful when using statically allocated objects). */
-        #define PRIVILEGED_FUNCTION
-        #define PRIVILEGED_DATA    __attribute__( ( section( "privileged_data" ) ) )
-        #define FREERTOS_SYSTEM_CALL
-
 
         #if ( ( configUSE_MPU_WRAPPERS_V1 == 0 ) && ( configENABLE_ACCESS_CONTROL_LIST == 1 ) )
 
@@ -265,14 +274,11 @@
 
         #endif /* #if ( ( configUSE_MPU_WRAPPERS_V1 == 0 ) && ( configENABLE_ACCESS_CONTROL_LIST == 1 ) ) */
 
-    #else /* MPU_WRAPPERS_INCLUDED_FROM_API_FILE */
-
-/* Ensure API functions go in the privileged execution section. */
-        #define PRIVILEGED_FUNCTION     __attribute__( ( section( "privileged_functions" ) ) )
-        #define PRIVILEGED_DATA         __attribute__( ( section( "privileged_data" ) ) )
-        #define FREERTOS_SYSTEM_CALL    __attribute__( ( section( "freertos_system_calls" ) ) )
-
     #endif /* MPU_WRAPPERS_INCLUDED_FROM_API_FILE */
+
+    #define PRIVILEGED_FUNCTION     __attribute__( ( section( "privileged_functions" ) ) )
+    #define PRIVILEGED_DATA         __attribute__( ( section( "privileged_data" ) ) )
+    #define FREERTOS_SYSTEM_CALL    __attribute__( ( section( "freertos_system_calls" ) ) )
 
 #else /* portUSING_MPU_WRAPPERS */
 

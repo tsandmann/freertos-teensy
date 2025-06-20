@@ -2,11 +2,11 @@
 
 FreeRTOS-Kernel conforms to [MISRA C:2012](https://www.misra.org.uk/misra-c)
 guidelines, with the deviations listed below. Compliance is checked with
-Coverity static analysis. Since the FreeRTOS kernel is designed for
-small-embedded devices, it needs to have a very small memory footprint and
-has to be efficient. To achieve that and to increase the performance, it
-deviates from some MISRA rules. The specific deviations, suppressed inline,
-are listed below.
+Coverity static analysis version 2023.6.1. Since the FreeRTOS kernel is
+designed for small-embedded devices, it needs to have a very small memory
+footprint and has to be efficient. To achieve that and to increase the
+performance, it deviates from some MISRA rules. The specific deviations,
+suppressed inline, are listed below.
 
 Additionally, [MISRA configuration file](examples/coverity/coverity_misra.config)
 contains project wide deviations.
@@ -17,6 +17,14 @@ with ( Assuming rule 8.4 violation; with justification in point 1 ):
 ```
 grep 'MISRA Ref 8.4.1' . -rI
 ```
+
+#### Dir 4.7
+MISRA C:2012 Dir 4.7: If a function returns error information, then that error
+information shall be tested.
+
+_Ref 4.7.1_
+ - `taskENTER_CRITICAL_FROM_ISR` returns the interrupt mask and not any error
+    information. Therefore, there is no need test the return value.
 
 #### Rule 8.4
 
@@ -106,6 +114,25 @@ _Ref 11.5.5_
  - The conversion from a pointer to void into a pointer to uint8_t is safe
    because data storage buffers are implemented as uint8_t arrays for the
    ease of sizing, alignment and access.
+
+#### Rule 14.3
+
+MISRA C-2012 Rule 14.3: Controlling expressions shall not be invariant.
+
+_Ref 14.3_
+ - The `configMAX_TASK_NAME_LEN` , `taskRESERVED_TASK_NAME_LENGTH` and `SIZE_MAX`
+   are evaluated to constants at compile time and may vary based on the build
+   configuration.
+
+#### Rule 18.1
+
+MISRA C-2012 Rule 18.1: A pointer resulting from arithmetic on a pointer operand
+shall address an element of the same array as that pointer operand.
+
+_Ref 18.1_
+ - Array access remains within bounds since either the null terminator in
+   the IDLE task name will break the loop, or the loop will break normally
+   if the array size is smaller than the IDLE task name length.
 
 #### Rule 21.6
 

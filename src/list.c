@@ -1,6 +1,6 @@
 /*
- * FreeRTOS Kernel V11.0.1
- * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V11.2.0
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -130,7 +130,7 @@ void vListInsertEnd( List_t * const pxList,
     /* Remember which list the item is in. */
     pxNewListItem->pxContainer = pxList;
 
-    ( pxList->uxNumberOfItems )++;
+    ( pxList->uxNumberOfItems ) = ( UBaseType_t ) ( pxList->uxNumberOfItems + 1U );
 
     traceRETURN_vListInsertEnd();
 }
@@ -166,7 +166,7 @@ void vListInsert( List_t * const pxList,
     {
         /* *** NOTE ***********************************************************
         *  If you find your application is crashing here then likely causes are
-        *  listed below.  In addition see https://www.FreeRTOS.org/FAQHelp.html for
+        *  listed below.  In addition see https://www.freertos.org/Why-FreeRTOS/FAQs for
         *  more tips, and ensure configASSERT() is defined!
         *  https://www.FreeRTOS.org/a00110.html#configASSERT
         *
@@ -192,7 +192,9 @@ void vListInsert( List_t * const pxList,
         for( pxIterator = ( ListItem_t * ) &( pxList->xListEnd ); pxIterator->pxNext->xItemValue <= xValueOfInsertion; pxIterator = pxIterator->pxNext )
         {
             /* There is nothing to do here, just iterating to the wanted
-             * insertion position. */
+             * insertion position.
+             * IF YOU FIND YOUR CODE STUCK HERE, SEE THE NOTE JUST ABOVE.
+             */
         }
     }
 
@@ -205,11 +207,12 @@ void vListInsert( List_t * const pxList,
      * item later. */
     pxNewListItem->pxContainer = pxList;
 
-    ( pxList->uxNumberOfItems )++;
+    ( pxList->uxNumberOfItems ) = ( UBaseType_t ) ( pxList->uxNumberOfItems + 1U );
 
     traceRETURN_vListInsert();
 }
 /*-----------------------------------------------------------*/
+
 
 UBaseType_t uxListRemove( ListItem_t * const pxItemToRemove )
 {
@@ -218,8 +221,6 @@ UBaseType_t uxListRemove( ListItem_t * const pxItemToRemove )
     List_t * const pxList = pxItemToRemove->pxContainer;
 
     traceENTER_uxListRemove( pxItemToRemove );
-
-
 
     pxItemToRemove->pxNext->pxPrevious = pxItemToRemove->pxPrevious;
     pxItemToRemove->pxPrevious->pxNext = pxItemToRemove->pxNext;
@@ -238,7 +239,7 @@ UBaseType_t uxListRemove( ListItem_t * const pxItemToRemove )
     }
 
     pxItemToRemove->pxContainer = NULL;
-    ( pxList->uxNumberOfItems )--;
+    ( pxList->uxNumberOfItems ) = ( UBaseType_t ) ( pxList->uxNumberOfItems - 1U );
 
     traceRETURN_uxListRemove( pxList->uxNumberOfItems );
 

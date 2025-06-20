@@ -1,6 +1,6 @@
-# FreeRTOS Port for Teensy 3.5, 3.6, 4.0, 4.1
+# FreeRTOS Port for Teensy 3.6, 4.0, 4.1
 
-This is a basic port of [FreeRTOS][FreeRTOS] for the [Teensy 3.5][Teensy], [Teensy 3.6][Teensy], [Teensy 4.0][Teensy] and [Teensy 4.1][Teensy] boards.
+This is a basic port of [FreeRTOS][FreeRTOS] for the [Teensy 3.6][Teensy], [Teensy 4.0][Teensy] and [Teensy 4.1][Teensy] boards.
 
 ## Introduction
 
@@ -45,10 +45,6 @@ Currently there are the following limitations for Teensyduino projects:
  - If the sketch (or any included library) uses the `EventResponder` [class](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L67), the `EventResponder::attachInterrupt()` [variant](https://github.com/PaulStoffregen/cores/blob/bf413538ce5d331a4ac768e50c5668b9b6c1901f/teensy4/EventResponder.h#L111) must not be used, otherwise FreeRTOS will stop working. An update of the Teenys core library is required to make this work (this [Pull request](https://github.com/PaulStoffregen/cores/pull/683) needs to be merged for this).
  - For Teensy 4.x: To print useful stack traces (see [`void HardFault_HandlerC(unsigned int* hardfault_args)`](https://github.com/tsandmann/freertos-teensy/blob/master/src/portable/teensy_4.cpp#L351) and [`_Unwind_Reason_Code trace_fcn(_Unwind_Context* ctx, void* depth)`](https://github.com/tsandmann/freertos-teensy/blob/master/src/portable/teensy_common.cpp#L179)) in case of a crash or an exception, the code must be compiled by using the `-fasynchronous-unwind-tables` option to tell gcc to generate the needed unwind tables. Furthermore, an updated linker script is needed to put `.ARM.exidx` and `.ARM.extab` in the right place and some (startup) code to copy these tables into RAM. (libgcc's unwind code requires the unwind table at an address reachable by a 31-bit signed offset (+/- 0x3FFFFFFF) from executed instructions). To support call traces over C-library calls, newlib has to be compiled with `-fasynchronous-unwind-tables` option as well.
  - I haven't done much testing so far as I don't use Teensyduino for my projects.
-
-## Continuous Integration Tests
-
-TBD
 
 [FreeRTOS]: https://www.freertos.org
 [Teensy]: https://www.pjrc.com/teensy/index.html
