@@ -31,6 +31,8 @@
 #define _GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #endif
 
+#define Binary_h
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "HardwareSerial.h"
@@ -110,12 +112,22 @@
 #define PROGMEM_T(_tag) SECTION_HELPER(progmem, _tag)
 #define FLASHMEM_T(_tag) SECTION_HELPER(flashmem, _tag)
 #define PSTR_T(str, _tag) ({static const char data[] SECTION_HELPER(progmem, _tag) = (str); &data[0]; })
+
+#if __cplusplus < 201703L
 #define PSTR_SV(str)                                                                        \
     ({                                                                                      \
         __attribute__((section(".progmem.sv"))) static const char _str[] { str };           \
         __attribute__((section(".progmem.sv"))) static const std::string_view _sv { _str }; \
         _sv;                                                                                \
     })
+#else
+#define PSTR_SV(str)                                                                               \
+    ({                                                                                             \
+        using namespace std::string_view_literals;                                                 \
+        __attribute__((section(".progmem.sv"))) static constexpr std::string_view _sv { str##sv }; \
+        _sv;                                                                                       \
+    })
+#endif // __cplusplus < 201703L
 
 
 namespace arduino {
