@@ -51,6 +51,7 @@
 static constexpr bool DEBUG { false }; // compile with -DPRINT_DEBUG_STUFF for debug output on Serial4
 
 extern "C" {
+extern uint8_t* _g_current_heap_end;
 extern unsigned long _heap_start;
 extern unsigned long _heap_end;
 extern unsigned long _estack;
@@ -183,7 +184,7 @@ FLASHMEM std::tuple<size_t, size_t, size_t, size_t, size_t, size_t, size_t> ram1
 
 FLASHMEM std::tuple<size_t, size_t> ram2_usage() {
     const size_t ram_size { static_cast<size_t>(reinterpret_cast<uint8_t*>(0x20'280'000) - reinterpret_cast<uint8_t*>(0x20'200'000)) };
-    const size_t free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_heap_end) - reinterpret_cast<uint8_t*>(&_heap_start)) };
+    const size_t free { static_cast<size_t>(reinterpret_cast<uint8_t*>(&_heap_end) - _g_current_heap_end) };
 
     const std::tuple<size_t, size_t> ret { free, ram_size };
     return ret;

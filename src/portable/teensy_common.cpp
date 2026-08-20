@@ -41,6 +41,10 @@
 #error "Unsupported board"
 #endif
 
+#if !defined(configTEENSY_ENABLE_HEAP_IN_RAM1)
+#define configTEENSY_ENABLE_HEAP_IN_RAM1 1 // original behaviour; breaks malloc()
+#endif // !defined(configTEENSY_ENABLE_HEAP_IN_RAM1)
+
 static constexpr bool DEBUG { false };
 
 using namespace arduino;
@@ -48,14 +52,20 @@ using namespace arduino;
 extern "C" {
 asm(".global _printf_float"); /**< printf supporting floating point values */
 
-extern unsigned long _heap_end;
 extern unsigned long _estack;
 extern unsigned long _ebss;
 
 extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern uint32_t set_arm_clock(uint32_t frequency);
+#if configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
+extern unsigned long _heap_start;
+extern unsigned long _heap_end;
+uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_heap_start) };
+#else
 uint8_t* _g_current_heap_end { reinterpret_cast<uint8_t*>(&_ebss) + 32 };
+#endif // configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
+
 
 
 FLASHMEM __attribute__((weak)) uint8_t get_debug_led_pin() {
@@ -345,16 +355,32 @@ void* _sbrk_r(struct _reent* p_reent, ptrdiff_t incr) {
     if (DEBUG) {
         EXC_PRINTF(PSTR("_sbrk_r(%d): "), incr);
         EXC_PRINTF(PSTR("current_heap_end=0x%x "), reinterpret_cast<uintptr_t>(_g_current_heap_end));
+#if configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
+        EXC_PRINTF(PSTR("_heap_start=0x%x "), reinterpret_cast<uintptr_t>(&_heap_start));
+        EXC_PRINTF(PSTR("_heap_end=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_heap_end));
+#else
         EXC_PRINTF(PSTR("_ebss=0x%x "), reinterpret_cast<uintptr_t>(&_ebss));
         EXC_PRINTF(PSTR("_estack=0x%x\r\n"), reinterpret_cast<uintptr_t>(&_estack));
+#endif // configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
     }
 
     const auto primask = __get_PRIMASK();
     __disable_irq();
     void* previous_heap_end { _g_current_heap_end };
 
+#if configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
+    // Teensy 4, heap in RAM2 - no need to check vs stack, as that's in RAM1
+    // (except that it's probably mostly inside the tasks' allocations)
+    void* new_heap_end = _g_current_heap_end + incr;
+    if ( (new_heap_end >= &_heap_end)
+      || (new_heap_end < previous_heap_end) // incr is huge - overflowed!
+        )
+#else
+    // Teensy 3, or Teensy 4 with "heap" in RAM1
     if ((reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr >= reinterpret_cast<uintptr_t>(&_estack) - 8'192U)
-        || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss))) {
+        || (reinterpret_cast<uintptr_t>(_g_current_heap_end) + incr < reinterpret_cast<uintptr_t>(&_ebss)))
+#endif // configTEENSY_ENABLE_HEAP_IN_RAM1 != 1
+    {
         __set_PRIMASK(primask);
 
         EXC_PRINTF(PSTR("_sbrk_r(%d): no mem available.\r\n"), incr);
