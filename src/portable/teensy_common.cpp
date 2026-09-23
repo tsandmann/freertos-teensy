@@ -44,7 +44,24 @@
 
 #if !defined(configTEENSY_HEAP_ALLOCATION)
 #error "configTEENSY_HEAP_ALLOCATION not defined"
-#endif
+#else
+
+/*
+ * Determine where to allocate heap - DTCM or RAM2
+ */
+#if configTEENSY_HEAP_ALLOCATION == 1
+    /* heap placed in DTCM (after bss and before end of main stack) */
+#define G_HEAP_START  reinterpret_cast<uint8_t*>(&_ebss) + 32
+#define G_HEAP_MAX    reinterpret_cast<uint8_t*>(&_estack) - freertos::MAIN_STACK_SIZE
+#elif configTEENSY_HEAP_ALLOCATION == 2
+    /* heap placed in RAM (after bss.dma and before exidx) */
+#define G_HEAP_START  reinterpret_cast<uint8_t*>(&_heap_start)
+#define G_HEAP_MAX    reinterpret_cast<uint8_t*>(&_heap_end)
+#else
+#error "Unsupported configTEENSY_HEAP_ALLOCATION value"
+#endif // configTEENSY_HEAP_ALLOCATION
+
+#endif // !defined(configTEENSY_HEAP_ALLOCATION)
 
 static constexpr bool DEBUG { false };
 
@@ -62,27 +79,9 @@ extern volatile uint32_t systick_millis_count;
 extern volatile uint32_t systick_cycle_count;
 extern uint32_t set_arm_clock(uint32_t frequency);
 
-__attribute__((weak)) uint8_t* _g_heap_start {
-#if configTEENSY_HEAP_ALLOCATION == 1
-    /* heap placed in DTCM (after bss and before end of main stack) */
-    reinterpret_cast<uint8_t*>(&_ebss) + 32
-#elif configTEENSY_HEAP_ALLOCATION == 2
-    /* heap placed in RAM (after bss.dma and before exidx) */
-    reinterpret_cast<uint8_t*>(&_heap_start)
-#else
-#error "Unsupported configTEENSY_HEAP_ALLOCATION value"
-#endif // configTEENSY_HEAP_ALLOCATION
-};
-
-__attribute__((weak)) uint8_t* _g_heap_max {
-#if configTEENSY_HEAP_ALLOCATION == 1
-    reinterpret_cast<uint8_t*>(&_estack) - freertos::MAIN_STACK_SIZE
-#elif configTEENSY_HEAP_ALLOCATION == 2
-    reinterpret_cast<uint8_t*>(&_heap_end)
-#endif // configTEENSY_HEAP_ALLOCATION
-};
-
-uint8_t* _g_current_heap_end { _g_heap_start };
+__attribute__((weak)) uint8_t* _g_heap_start { G_HEAP_START };
+__attribute__((weak)) uint8_t* _g_heap_max   { G_HEAP_MAX };
+uint8_t* _g_current_heap_end                 { G_HEAP_START };
 
 
 FLASHMEM __attribute__((weak)) uint8_t get_debug_led_pin() {
